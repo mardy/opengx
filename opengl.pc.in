@@ -1,0 +1,9 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: OpenGL
+Description: OpenGL (without GLX) library and headers.
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lopengx
+Cflags: -I${includedir}
