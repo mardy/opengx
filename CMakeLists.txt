@@ -14,6 +14,10 @@ add_library(${TARGET} STATIC
     src/gc_gl.c
     src/image_DXT.c
     src/image_DXT.h
+    src/opengx.h
+)
+set_target_properties(${TARGET} PROPERTIES
+    PUBLIC_HEADER src/opengx.h
 )
 
 target_include_directories(${TARGET} PUBLIC
@@ -27,9 +31,10 @@ target_link_libraries(${TARGET} PUBLIC
 configure_file(opengl.pc.in opengl.pc @ONLY)
 
 install(TARGETS ${TARGET}
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    LIBRARY
+    ARCHIVE
+    RUNTIME
+    PUBLIC_HEADER
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opengl.pc
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")

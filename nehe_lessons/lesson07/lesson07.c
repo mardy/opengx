@@ -476,7 +476,8 @@ int main( int argc, char **argv )
 	}
 
 	#ifdef GAMECUBE_WII
-	InitializeGLdata();
+	// TODO: this should not be here, SDL will take care of this
+	ogx_initialize();
 	#endif
 
     /* initialize OpenGL */

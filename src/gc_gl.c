@@ -46,6 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 #include "image_DXT.h"
+#include "opengx.h"
+
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <gccore.h>
@@ -253,7 +255,7 @@ inline float _clampf_11(float n)
         GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
     }
 
-void InitializeGLdata()
+void ogx_initialize()
 {
     GX_SetDispCopyGamma(GX_GM_1_0);
     int i;
