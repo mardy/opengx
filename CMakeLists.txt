@@ -39,3 +39,5 @@ install(TARGETS ${TARGET}
 install(DIRECTORY "include/GL" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opengl.pc
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+install(FILES OpenGLConfig.cmake
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/OpenGL")
