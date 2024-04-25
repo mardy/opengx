@@ -176,7 +176,7 @@ void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, f
 // we need to compute C = A*B (as rowmajor, "regular") then C = B^T * A^T = (A*B)^T
 // so we compute the product and transpose the result (for storage) in one go.
 //                                        Reversed operands a and b
-inline void _gl_matrix_multiply(float *dst, float *b, float *a)
+static inline void _gl_matrix_multiply(float *dst, float *b, float *a)
 {
     dst[0] = a[0] * b[0] + a[1] * b[4] + a[2] * b[8] + a[3] * b[12];
     dst[1] = a[0] * b[1] + a[1] * b[5] + a[2] * b[9] + a[3] * b[13];
@@ -196,7 +196,7 @@ inline void _gl_matrix_multiply(float *dst, float *b, float *a)
     dst[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
 }
 
-inline float _clampf_01(float n)
+static inline float _clampf_01(float n)
 {
     if (n > 1.0f)
         return 1.0f;
@@ -205,7 +205,8 @@ inline float _clampf_01(float n)
     else
         return n;
 }
-inline float _clampf_11(float n)
+
+static inline float _clampf_11(float n)
 {
     if (n > 1.0f)
         return 1.0f;
