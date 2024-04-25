@@ -167,10 +167,10 @@ static void scramble_4b(unsigned char *src, void *dst, const unsigned int width,
 void scale_internal(int components, int widthin, int heightin, const unsigned char *datain,
                     int widthout, int heightout, unsigned char *dataout);
 
-void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count);
-void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count);
+void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count, bool loop);
+void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count, bool loop);
 void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color, int count,
-                           int ne, int color_provide, int texen);
+                           int ne, int color_provide, int texen, bool loop);
 
 // We have to reverse the product, as we store the matrices as colmajor (otherwise said trasposed)
 // we need to compute C = A*B (as rowmajor, "regular") then C = B^T * A^T = (A*B)^T
@@ -1732,6 +1732,7 @@ unsigned char __draw_mode(GLenum mode)
     case GL_POINTS:
         gxmode = GX_POINTS;
         break;
+    case GL_LINE_LOOP:
     case GL_LINE_STRIP:
         gxmode = GX_LINESTRIP;
         break;
@@ -1752,7 +1753,6 @@ unsigned char __draw_mode(GLenum mode)
         break;
 
     case GL_POLYGON:
-    case GL_LINE_LOOP:
     case GL_QUAD_STRIP:
     default:
         return 0xff; // FIXME: Emulate these modes
@@ -1971,16 +1971,17 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         NORMAL_UPDATE
     }
 
-    GX_Begin(gxmode, GX_VTXFMT0, count);
+    bool loop = (mode == GL_LINE_LOOP);
+    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
 
     if (glparamstate.normal_enabled && !glparamstate.color_enabled) {
         if (texen) {
-            __draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count);
+            __draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count, loop);
         } else {
-            __draw_arrays_pos_normal(ptr_pos, ptr_normal, count);
+            __draw_arrays_pos_normal(ptr_pos, ptr_normal, count, loop);
         }
     } else {
-        __draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color, count, glparamstate.normal_enabled, color_provide, texen);
+        __draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color, count, glparamstate.normal_enabled, color_provide, texen, loop);
     }
     GX_End();
 
@@ -2051,10 +2052,11 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         NORMAL_UPDATE
     }
 
-    GX_Begin(gxmode, GX_VTXFMT0, count);
+    bool loop = (mode == GL_LINE_LOOP);
+    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
     int i;
-    for (i = 0; i < count; i++) {
-        int index = *ind++;
+    for (i = 0; i < count + loop; i++) {
+        int index = ind[i % count];
         float *ptr_pos = glparamstate.vertex_array + glparamstate.vertex_stride * index;
         float *ptr_texc = glparamstate.texcoord_array + glparamstate.texcoord_stride * index;
         float *ptr_color = glparamstate.color_array + glparamstate.color_stride * index;
@@ -2085,9 +2087,11 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     glparamstate.dirty.all = 0;
 }
 
-void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count)
+void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count,
+                                   bool loop)
 {
     int i;
+    float *pos = ptr_pos, *texc = ptr_texc, *normal = ptr_normal;
     for (i = 0; i < count; i++) {
         GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
         ptr_pos += glparamstate.vertex_stride;
@@ -2098,10 +2102,17 @@ void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_n
         GX_TexCoord2f32(ptr_texc[0], ptr_texc[1]);
         ptr_texc += glparamstate.texcoord_stride;
     }
+    if (loop) {
+        GX_Position3f32(pos[0], pos[1], pos[2]);
+        GX_Normal3f32(normal[0], normal[1], normal[2]);
+        GX_TexCoord2f32(texc[0], texc[1]);
+    }
 }
-void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count)
+void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count,
+                              bool loop)
 {
     int i;
+    float *pos = ptr_pos, *normal = ptr_normal;
     for (i = 0; i < count; i++) {
         GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
         ptr_pos += glparamstate.vertex_stride;
@@ -2109,34 +2120,39 @@ void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count)
         GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
         ptr_normal += glparamstate.normal_stride;
     }
+    if (loop) {
+        GX_Position3f32(pos[0], pos[1], pos[2]);
+        GX_Normal3f32(normal[0], normal[1], normal[2]);
+    }
 }
 void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color, int count,
-                           int ne, int color_provide, int texen)
+                           int ne, int color_provide, int texen, bool loop)
 {
 
     int i;
-    for (i = 0; i < count; i++) {
-        GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
-        ptr_pos += glparamstate.vertex_stride;
+    for (i = 0; i < count + loop; i++) {
+        int j = i % count;
+        float *pos = ptr_pos + j * glparamstate.vertex_stride;
+        GX_Position3f32(pos[0], pos[1], pos[2]);
 
         if (ne) {
-            GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
-            ptr_normal += glparamstate.normal_stride;
+            float *normal = ptr_normal + j * glparamstate.normal_stride;
+            GX_Normal3f32(normal[0], normal[1], normal[2]);
         }
 
         // If the data stream doesn't contain any color data just
         // send the current color (the last glColor* call)
         if (color_provide) {
-            unsigned char arr[4] = { ptr_color[0] * 255.0f, ptr_color[1] * 255.0f, ptr_color[2] * 255.0f, ptr_color[3] * 255.0f };
+            float *color = ptr_color + j * glparamstate.color_stride;
+            unsigned char arr[4] = { color[0] * 255.0f, color[1] * 255.0f, color[2] * 255.0f, color[3] * 255.0f };
             GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
-            ptr_color += glparamstate.color_stride;
             if (color_provide == 2)
                 GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
         }
 
         if (texen) {
-            GX_TexCoord2f32(ptr_texc[0], ptr_texc[1]);
-            ptr_texc += glparamstate.texcoord_stride;
+            float *texc = ptr_texc + j * glparamstate.texcoord_stride;
+            GX_TexCoord2f32(texc[0], texc[1]);
         }
     }
 }
