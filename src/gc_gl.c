@@ -1755,7 +1755,7 @@ unsigned char __draw_mode(GLenum mode)
     case GL_LINE_LOOP:
     case GL_QUAD_STRIP:
     default:
-        return ~0; // FIXME: Emulate these modes
+        return 0xff; // FIXME: Emulate these modes
     }
     return gxmode;
 }
@@ -1903,7 +1903,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
 
     unsigned char gxmode = __draw_mode(mode);
-    if (gxmode == ~0)
+    if (gxmode == 0xff)
         return;
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
@@ -1992,7 +1992,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 {
 
     unsigned char gxmode = __draw_mode(mode);
-    if (gxmode == ~0)
+    if (gxmode == 0xff)
         return;
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
