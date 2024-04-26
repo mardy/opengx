@@ -338,9 +338,15 @@ void ogx_initialize()
         glparamstate.lighting.lights[i].ambient_color[2] = 0;
         glparamstate.lighting.lights[i].ambient_color[3] = 1;
 
-        glparamstate.lighting.lights[i].diffuse_color[0] = 0;
-        glparamstate.lighting.lights[i].diffuse_color[1] = 0;
-        glparamstate.lighting.lights[i].diffuse_color[2] = 0;
+        if (i == 0) {
+            glparamstate.lighting.lights[i].diffuse_color[0] = 1;
+            glparamstate.lighting.lights[i].diffuse_color[1] = 1;
+            glparamstate.lighting.lights[i].diffuse_color[2] = 1;
+        } else {
+            glparamstate.lighting.lights[i].diffuse_color[0] = 0;
+            glparamstate.lighting.lights[i].diffuse_color[1] = 0;
+            glparamstate.lighting.lights[i].diffuse_color[2] = 0;
+        }
         glparamstate.lighting.lights[i].diffuse_color[3] = 1;
 
         glparamstate.lighting.lights[i].spot_cutoff = 180.0f;
