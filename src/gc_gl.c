@@ -1860,11 +1860,11 @@ void __setup_render_stages(int texen)
             }
         }
 
-        // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is zero)
+        // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
         GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask, GX_DF_NONE, GX_AF_SPOT);
         GX_SetChanAmbColor(GX_COLOR0A0, color_gamb);
 
-        // Color1 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
+        // Color1 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is zero)
         GX_SetChanCtrl(GX_COLOR1A1, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask << 4, GX_DF_CLAMP, GX_AF_SPOT);
         GX_SetChanAmbColor(GX_COLOR1A1, color_zero);
 
