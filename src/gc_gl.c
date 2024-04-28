@@ -137,6 +137,8 @@ typedef struct glparams_
         float matemission[4];
         char enabled;
 
+        char color_material_enabled;
+
         GXColor cached_ambient;
     } lighting;
 } glparams_;
@@ -377,6 +379,8 @@ void ogx_initialize()
     glparamstate.lighting.matemission[2] = 0.0f;
     glparamstate.lighting.matemission[3] = 1.0f;
 
+    glparamstate.lighting.color_material_enabled = 0;
+
     // Setup data types for every possible attribute
 
     // Typical straight float
@@ -395,6 +399,9 @@ void glEnable(GLenum cap)
     switch (cap) {
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 1;
+        break;
+    case GL_COLOR_MATERIAL:
+        glparamstate.lighting.color_material_enabled = 1;
         break;
     case GL_CULL_FACE:
         switch (glparamstate.glcullmode) {
@@ -445,6 +452,9 @@ void glDisable(GLenum cap)
     switch (cap) {
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 0;
+        break;
+    case GL_COLOR_MATERIAL:
+        glparamstate.lighting.color_material_enabled = 0;
         break;
     case GL_CULL_FACE:
         GX_SetCullMode(GX_CULL_NONE);
@@ -1705,18 +1715,30 @@ int __prepare_lighting()
 
         // Multiply the light color by the material color and set as light color
         GXColor amb_col = {
-            _clampf_01(glparamstate.lighting.matambient[0] * glparamstate.lighting.lights[i].ambient_color[0]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[1] * glparamstate.lighting.lights[i].ambient_color[1]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[2] * glparamstate.lighting.lights[i].ambient_color[2]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[3] * glparamstate.lighting.lights[i].ambient_color[3]) * 255.0f
+            glparamstate.lighting.lights[i].ambient_color[0] * 255.0f,
+            glparamstate.lighting.lights[i].ambient_color[1] * 255.0f,
+            glparamstate.lighting.lights[i].ambient_color[2] * 255.0f,
+            glparamstate.lighting.lights[i].ambient_color[3] * 255.0f
         };
 
         GXColor diff_col = {
-            _clampf_01(glparamstate.lighting.matdiffuse[0] * glparamstate.lighting.lights[i].diffuse_color[0]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matdiffuse[1] * glparamstate.lighting.lights[i].diffuse_color[1]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matdiffuse[2] * glparamstate.lighting.lights[i].diffuse_color[2]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matdiffuse[3] * glparamstate.lighting.lights[i].diffuse_color[3]) * 255.0f
+            glparamstate.lighting.lights[i].diffuse_color[0] * 255.0f,
+            glparamstate.lighting.lights[i].diffuse_color[1] * 255.0f,
+            glparamstate.lighting.lights[i].diffuse_color[2] * 255.0f,
+            glparamstate.lighting.lights[i].diffuse_color[3] * 255.0f
         };
+
+        if (!glparamstate.lighting.color_material_enabled) {
+            amb_col.r *= glparamstate.lighting.matambient[0];
+            amb_col.g *= glparamstate.lighting.matambient[1];
+            amb_col.b *= glparamstate.lighting.matambient[2];
+            amb_col.a *= glparamstate.lighting.matambient[3];
+
+            diff_col.r *= glparamstate.lighting.matdiffuse[0];
+            diff_col.g *= glparamstate.lighting.matdiffuse[1];
+            diff_col.b *= glparamstate.lighting.matdiffuse[2];
+            diff_col.a *= glparamstate.lighting.matdiffuse[3];
+        }
 
         GX_InitLightColor(&glparamstate.lighting.lightobj[i], amb_col);
         GX_InitLightColor(&glparamstate.lighting.lightobj[i + 4], diff_col);
@@ -1790,10 +1812,10 @@ void __setup_render_stages(int texen)
 
         GXColor color_zero = { 0, 0, 0, 0 };
         GXColor color_gamb = {
-            _clampf_01(glparamstate.lighting.matambient[0] * glparamstate.lighting.globalambient[0]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[1] * glparamstate.lighting.globalambient[1]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[2] * glparamstate.lighting.globalambient[2]) * 255.0f,
-            _clampf_01(glparamstate.lighting.matambient[3] * glparamstate.lighting.globalambient[3]) * 255.0f
+            glparamstate.lighting.globalambient[0] * 255.0f,
+            glparamstate.lighting.globalambient[1] * 255.0f,
+            glparamstate.lighting.globalambient[2] * 255.0f,
+            glparamstate.lighting.globalambient[3] * 255.0f
         };
 
         GX_SetNumChans(2);
@@ -1801,18 +1823,41 @@ void __setup_render_stages(int texen)
         GX_SetNumTexGens(0);
 
         unsigned char vert_color_src = GX_SRC_VTX;
-        if (!glparamstate.color_enabled) {
+        if (!glparamstate.color_enabled || !glparamstate.lighting.color_material_enabled) {
             vert_color_src = GX_SRC_REG;
 
-            GXColor ccol = {
-                glparamstate.imm_mode.current_color[0] * 255.0f,
-                glparamstate.imm_mode.current_color[1] * 255.0f,
-                glparamstate.imm_mode.current_color[2] * 255.0f,
-                glparamstate.imm_mode.current_color[3] * 255.0f
-            };
+            if (glparamstate.lighting.color_material_enabled) {
+                GXColor ccol = {
+                    glparamstate.imm_mode.current_color[0] * 255.0f,
+                    glparamstate.imm_mode.current_color[1] * 255.0f,
+                    glparamstate.imm_mode.current_color[2] * 255.0f,
+                    glparamstate.imm_mode.current_color[3] * 255.0f
+                };
 
-            GX_SetChanMatColor(GX_COLOR0A0, ccol);
-            GX_SetChanMatColor(GX_COLOR1A1, ccol);
+                GXColor acol = ccol;
+                acol.r *= glparamstate.lighting.globalambient[0];
+                acol.g *= glparamstate.lighting.globalambient[1];
+                acol.b *= glparamstate.lighting.globalambient[2];
+                acol.a *= glparamstate.lighting.globalambient[3];
+                GX_SetChanMatColor(GX_COLOR0A0, acol);
+                GX_SetChanMatColor(GX_COLOR1A1, ccol);
+            } else {
+                GXColor acol = {
+                    glparamstate.lighting.matambient[0] * 255.0f,
+                    glparamstate.lighting.matambient[1] * 255.0f,
+                    glparamstate.lighting.matambient[2] * 255.0f,
+                    glparamstate.lighting.matambient[3] * 255.0f,
+                };
+                GXColor dcol = {
+                    glparamstate.lighting.matdiffuse[0] * 255.0f,
+                    glparamstate.lighting.matdiffuse[1] * 255.0f,
+                    glparamstate.lighting.matdiffuse[2] * 255.0f,
+                    glparamstate.lighting.matdiffuse[3] * 255.0f,
+                };
+
+                GX_SetChanMatColor(GX_COLOR0A0, acol);
+                GX_SetChanMatColor(GX_COLOR1A1, dcol);
+            }
         }
 
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is zero)
@@ -1938,7 +1983,8 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
-    if (glparamstate.color_enabled) { // Vertex colouring
+    if (glparamstate.color_enabled &&
+        (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
         if (glparamstate.lighting.enabled)
             color_provide = 2; // Lighting requires two color channels
         else
@@ -2028,7 +2074,8 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
-    if (glparamstate.color_enabled) { // Vertex colouring
+    if (glparamstate.color_enabled &&
+        (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
         if (glparamstate.lighting.enabled)
             color_provide = 2; // Lighting requires two color channels
         else
