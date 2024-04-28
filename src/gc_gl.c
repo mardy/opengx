@@ -302,6 +302,9 @@ void ogx_initialize()
     glparamstate.imm_mode.current_color[3] = 1.0f;
     glparamstate.imm_mode.current_texcoord[0] = 0;
     glparamstate.imm_mode.current_texcoord[1] = 0;
+    glparamstate.imm_mode.current_normal[0] = 0;
+    glparamstate.imm_mode.current_normal[1] = 0;
+    glparamstate.imm_mode.current_normal[2] = 1.0f;
     glparamstate.imm_mode.current_numverts = 0;
 
     glparamstate.vertex_enabled = 0; // DisableClientState on everything
