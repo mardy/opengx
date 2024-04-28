@@ -356,6 +356,11 @@ void ogx_initialize()
         glparamstate.lighting.lights[i].spot_exponent = 0;
     }
 
+    glparamstate.lighting.globalambient[0] = 0.2f;
+    glparamstate.lighting.globalambient[1] = 0.2f;
+    glparamstate.lighting.globalambient[2] = 0.2f;
+    glparamstate.lighting.globalambient[3] = 1.0f;
+
     glparamstate.lighting.matambient[0] = 0.2f;
     glparamstate.lighting.matambient[1] = 0.2f;
     glparamstate.lighting.matambient[2] = 0.2f;
