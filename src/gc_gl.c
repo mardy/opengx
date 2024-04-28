@@ -1740,6 +1740,7 @@ unsigned char __draw_mode(GLenum mode)
         gxmode = GX_LINES;
         break;
     case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
         gxmode = GX_TRIANGLESTRIP;
         break;
     case GL_TRIANGLE_FAN:
@@ -1753,7 +1754,6 @@ unsigned char __draw_mode(GLenum mode)
         break;
 
     case GL_POLYGON:
-    case GL_QUAD_STRIP:
     default:
         return 0xff; // FIXME: Emulate these modes
     }
