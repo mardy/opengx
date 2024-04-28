@@ -7,9 +7,6 @@ set(TARGET opengx)
 
 include(GNUInstallDirs)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL REQUIRED IMPORTED_TARGET sdl2)
-
 add_library(${TARGET} STATIC
     src/gc_gl.c
     src/image_DXT.c
@@ -22,10 +19,6 @@ set_target_properties(${TARGET} PROPERTIES
 
 target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(${TARGET} PUBLIC
-    PkgConfig::SDL
 )
 
 configure_file(opengl.pc.in opengl.pc @ONLY)
