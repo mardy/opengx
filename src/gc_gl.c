@@ -686,8 +686,8 @@ void glTexCoord2f(GLfloat u, GLfloat v)
 void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
 {
     glparamstate.imm_mode.current_normal[0] = nx;
-    glparamstate.imm_mode.current_normal[0] = ny;
-    glparamstate.imm_mode.current_normal[0] = nz;
+    glparamstate.imm_mode.current_normal[1] = ny;
+    glparamstate.imm_mode.current_normal[2] = nz;
 }
 
 void glVertex2i(GLint x, GLint y)
