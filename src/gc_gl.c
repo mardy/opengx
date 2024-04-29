@@ -324,9 +324,11 @@ void ogx_initialize()
         glparamstate.lighting.lights[i].atten[1] = 0;
         glparamstate.lighting.lights[i].atten[2] = 0;
 
+        /* The default value for light position is (0, 0, 1), but since it's a
+         * directional light we need to transform it to 100000. */
         glparamstate.lighting.lights[i].position[0] = 0;
         glparamstate.lighting.lights[i].position[1] = 0;
-        glparamstate.lighting.lights[i].position[2] = 1;
+        glparamstate.lighting.lights[i].position[2] = 100000;
         glparamstate.lighting.lights[i].position[3] = 0;
 
         glparamstate.lighting.lights[i].direction[0] = 0;
@@ -513,11 +515,6 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
             glparamstate.lighting.lights[lnum].position[0] = params[0] * 100000;
             glparamstate.lighting.lights[lnum].position[1] = params[1] * 100000;
             glparamstate.lighting.lights[lnum].position[2] = params[2] * 100000;
-
-            float len = 1.0f / sqrtf(params[0] * params[0] + params[1] * params[1] + params[2] * params[2]);
-            glparamstate.lighting.lights[lnum].direction[0] = params[0] * len;
-            glparamstate.lighting.lights[lnum].direction[1] = params[1] * len;
-            glparamstate.lighting.lights[lnum].direction[2] = params[2] * len;
         } else {
             glparamstate.lighting.lights[lnum].position[0] = params[0];
             glparamstate.lighting.lights[lnum].position[1] = params[1];
@@ -532,8 +529,6 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
                 for (j = 0; j < 4; j++)
                     modv[i][j] = glparamstate.modelview_matrix[j][i];
             guVecMultiply(modv, (guVector *)glparamstate.lighting.lights[lnum].position, (guVector *)glparamstate.lighting.lights[lnum].position);
-            if (params[3] == 0)
-                guVecMultiply(modv, (guVector *)glparamstate.lighting.lights[lnum].direction, (guVector *)glparamstate.lighting.lights[lnum].direction);
         }
         break;
     case GL_DIFFUSE:
@@ -1726,7 +1721,7 @@ int __prepare_lighting()
 
         // FIXME: Need to consider spotlights
         if (glparamstate.lighting.lights[i].position[3] == 0) {
-            // Directional light, it's a point light very far without atenuation
+            // Directional light, it's a point light very far without attenuation
             GX_InitLightAttn(&glparamstate.lighting.lightobj[i], 1, 0, 0, 1, 0, 0);
             GX_InitLightAttn(&glparamstate.lighting.lightobj[i + 4], 1, 0, 0, 1, 0, 0);
         } else {
