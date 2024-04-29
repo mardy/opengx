@@ -1883,6 +1883,26 @@ void __setup_render_stages(int texen)
             GX_SetChanMatColor(GX_COLOR1A1, dcol);
         }
 
+        GXColor ecol;
+        if (glparamstate.lighting.color_material_enabled &&
+            glparamstate.lighting.color_material_mode == GL_EMISSION) {
+            GXColor col = {
+                glparamstate.imm_mode.current_color[0] * 255.0f,
+                glparamstate.imm_mode.current_color[1] * 255.0f,
+                glparamstate.imm_mode.current_color[2] * 255.0f,
+                glparamstate.imm_mode.current_color[3] * 255.0f
+            };
+            ecol = col;
+        } else {
+            GXColor col = {
+                glparamstate.lighting.matemission[0] * 255.0f,
+                glparamstate.lighting.matemission[1] * 255.0f,
+                glparamstate.lighting.matemission[2] * 255.0f,
+                glparamstate.lighting.matemission[3] * 255.0f,
+            };
+            ecol = col;
+        };
+
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
         GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask, GX_DF_NONE, GX_AF_SPOT);
         GX_SetChanAmbColor(GX_COLOR0A0, color_gamb);
@@ -1893,12 +1913,6 @@ void __setup_render_stages(int texen)
 
         // STAGE 0: ambient*vert_color -> cprev
         // In data: d: Raster Color, a: emission color
-        GXColor ecol = {
-            glparamstate.lighting.matemission[0] * 255.0f,
-            glparamstate.lighting.matemission[1] * 255.0f,
-            glparamstate.lighting.matemission[2] * 255.0f,
-            glparamstate.lighting.matemission[3] * 255.0f,
-        };
         GX_SetTevColor(GX_TEVREG0, ecol);
         GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_C0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
         GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_RASA);
