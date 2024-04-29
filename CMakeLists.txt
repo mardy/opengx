@@ -12,6 +12,7 @@ add_library(${TARGET} STATIC
     src/image_DXT.c
     src/image_DXT.h
     src/opengx.h
+    src/utils.h
 )
 set_target_properties(${TARGET} PROPERTIES
     PUBLIC_HEADER src/opengx.h

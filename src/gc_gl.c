@@ -47,6 +47,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "image_DXT.h"
 #include "opengx.h"
+#include "utils.h"
 
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -198,26 +199,6 @@ static inline void _gl_matrix_multiply(float *dst, float *b, float *a)
     dst[13] = a[12] * b[1] + a[13] * b[5] + a[14] * b[9] + a[15] * b[13];
     dst[14] = a[12] * b[2] + a[13] * b[6] + a[14] * b[10] + a[15] * b[14];
     dst[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
-}
-
-static inline float _clampf_01(float n)
-{
-    if (n > 1.0f)
-        return 1.0f;
-    else if (n < 0.0f)
-        return 0.0f;
-    else
-        return n;
-}
-
-static inline float _clampf_11(float n)
-{
-    if (n > 1.0f)
-        return 1.0f;
-    else if (n < -1.0f)
-        return -1.0f;
-    else
-        return n;
 }
 
 #define MODELVIEW_UPDATE                                           \
@@ -691,26 +672,26 @@ void glColor4ubv(const GLubyte *color)
 }
 void glColor4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 {
-    glparamstate.imm_mode.current_color[0] = _clampf_01(red);
-    glparamstate.imm_mode.current_color[1] = _clampf_01(green);
-    glparamstate.imm_mode.current_color[2] = _clampf_01(blue);
-    glparamstate.imm_mode.current_color[3] = _clampf_01(alpha);
+    glparamstate.imm_mode.current_color[0] = clampf_01(red);
+    glparamstate.imm_mode.current_color[1] = clampf_01(green);
+    glparamstate.imm_mode.current_color[2] = clampf_01(blue);
+    glparamstate.imm_mode.current_color[3] = clampf_01(alpha);
 }
 
 void glColor3f(GLfloat red, GLfloat green, GLfloat blue)
 {
-    glparamstate.imm_mode.current_color[0] = _clampf_01(red);
-    glparamstate.imm_mode.current_color[1] = _clampf_01(green);
-    glparamstate.imm_mode.current_color[2] = _clampf_01(blue);
+    glparamstate.imm_mode.current_color[0] = clampf_01(red);
+    glparamstate.imm_mode.current_color[1] = clampf_01(green);
+    glparamstate.imm_mode.current_color[2] = clampf_01(blue);
     glparamstate.imm_mode.current_color[3] = 1.0f;
 }
 
 void glColor4fv(const GLfloat *v)
 {
-    glparamstate.imm_mode.current_color[0] = _clampf_01(v[0]);
-    glparamstate.imm_mode.current_color[1] = _clampf_01(v[1]);
-    glparamstate.imm_mode.current_color[2] = _clampf_01(v[2]);
-    glparamstate.imm_mode.current_color[3] = _clampf_01(v[3]);
+    glparamstate.imm_mode.current_color[0] = clampf_01(v[0]);
+    glparamstate.imm_mode.current_color[1] = clampf_01(v[1]);
+    glparamstate.imm_mode.current_color[2] = clampf_01(v[2]);
+    glparamstate.imm_mode.current_color[3] = clampf_01(v[3]);
 }
 
 void glTexCoord2f(GLfloat u, GLfloat v)
@@ -989,14 +970,14 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 
 void glClearColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha)
 {
-    glparamstate.clear_color.r = _clampf_01(red) * 255.0f;
-    glparamstate.clear_color.g = _clampf_01(green) * 255.0f;
-    glparamstate.clear_color.b = _clampf_01(blue) * 255.0f;
-    glparamstate.clear_color.a = _clampf_01(alpha) * 255.0f;
+    glparamstate.clear_color.r = clampf_01(red) * 255.0f;
+    glparamstate.clear_color.g = clampf_01(green) * 255.0f;
+    glparamstate.clear_color.b = clampf_01(blue) * 255.0f;
+    glparamstate.clear_color.a = clampf_01(alpha) * 255.0f;
 }
 void glClearDepth(GLclampd depth)
 {
-    glparamstate.clearz = _clampf_01(depth);
+    glparamstate.clearz = clampf_01(depth);
 }
 
 // Clearing is simulated by rendering a big square with the depth value
