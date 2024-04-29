@@ -138,6 +138,7 @@ typedef struct glparams_
         char enabled;
 
         char color_material_enabled;
+        uint16_t color_material_mode;
 
         GXColor cached_ambient;
     } lighting;
@@ -380,6 +381,7 @@ void ogx_initialize()
     glparamstate.lighting.matemission[3] = 1.0f;
 
     glparamstate.lighting.color_material_enabled = 0;
+    glparamstate.lighting.color_material_mode = GL_AMBIENT_AND_DIFFUSE;
 
     // Setup data types for every possible attribute
 
@@ -589,6 +591,12 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
     }
     glparamstate.dirty.bits.dirty_material = 1;
 };
+
+void glColorMaterial(GLenum face, GLenum mode)
+{
+    /* TODO: support the face parameter */
+    glparamstate.lighting.color_material_mode = mode;
+}
 
 void glCullFace(GLenum mode)
 {
@@ -1825,6 +1833,8 @@ void __setup_render_stages(int texen)
         unsigned char vert_color_src = GX_SRC_VTX;
         if (!glparamstate.color_enabled || !glparamstate.lighting.color_material_enabled) {
             vert_color_src = GX_SRC_REG;
+            GXColor acol, dcol;
+            bool ambient_set = false, diffuse_set = false;
 
             if (glparamstate.lighting.color_material_enabled) {
                 GXColor ccol = {
@@ -1834,30 +1844,43 @@ void __setup_render_stages(int texen)
                     glparamstate.imm_mode.current_color[3] * 255.0f
                 };
 
-                GXColor acol = ccol;
-                acol.r *= glparamstate.lighting.globalambient[0];
-                acol.g *= glparamstate.lighting.globalambient[1];
-                acol.b *= glparamstate.lighting.globalambient[2];
-                acol.a *= glparamstate.lighting.globalambient[3];
-                GX_SetChanMatColor(GX_COLOR0A0, acol);
-                GX_SetChanMatColor(GX_COLOR1A1, ccol);
-            } else {
-                GXColor acol = {
+                if (glparamstate.lighting.color_material_mode == GL_AMBIENT ||
+                    glparamstate.lighting.color_material_mode == GL_AMBIENT_AND_DIFFUSE) {
+                    acol = ccol;
+                    acol.r *= glparamstate.lighting.globalambient[0];
+                    acol.g *= glparamstate.lighting.globalambient[1];
+                    acol.b *= glparamstate.lighting.globalambient[2];
+                    acol.a *= glparamstate.lighting.globalambient[3];
+                    ambient_set = true;
+                }
+
+                if (glparamstate.lighting.color_material_mode == GL_DIFFUSE ||
+                    glparamstate.lighting.color_material_mode == GL_AMBIENT_AND_DIFFUSE) {
+                    dcol = ccol;
+                    diffuse_set = true;
+                }
+            }
+            if (!ambient_set) {
+                GXColor a = {
                     glparamstate.lighting.matambient[0] * 255.0f,
                     glparamstate.lighting.matambient[1] * 255.0f,
                     glparamstate.lighting.matambient[2] * 255.0f,
                     glparamstate.lighting.matambient[3] * 255.0f,
                 };
-                GXColor dcol = {
+                acol = a;
+            }
+            if (!diffuse_set) {
+                GXColor d = {
                     glparamstate.lighting.matdiffuse[0] * 255.0f,
                     glparamstate.lighting.matdiffuse[1] * 255.0f,
                     glparamstate.lighting.matdiffuse[2] * 255.0f,
                     glparamstate.lighting.matdiffuse[3] * 255.0f,
                 };
-
-                GX_SetChanMatColor(GX_COLOR0A0, acol);
-                GX_SetChanMatColor(GX_COLOR1A1, dcol);
+                dcol = d;
             }
+
+            GX_SetChanMatColor(GX_COLOR0A0, acol);
+            GX_SetChanMatColor(GX_COLOR1A1, dcol);
         }
 
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
