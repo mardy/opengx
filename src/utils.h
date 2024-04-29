@@ -63,4 +63,32 @@ static inline void floatcpy(float *dest, const float *src, size_t count)
     memcpy(dest, src, count * sizeof(float));
 }
 
+static inline GXColor gxcol_new_fv(float *components)
+{
+    GXColor c = {
+        components[0] * 255.0f,
+        components[1] * 255.0f,
+        components[2] * 255.0f,
+        components[3] * 255.0f
+    };
+    return c;
+}
+
+static inline void gxcol_mulfv(GXColor *color, float *components)
+{
+    color->r *= components[0];
+    color->g *= components[1];
+    color->b *= components[2];
+    color->a *= components[3];
+}
+
+static inline GXColor gxcol_cpy_mulfv(GXColor color, float *components)
+{
+    color.r *= components[0];
+    color.g *= components[1];
+    color.b *= components[2];
+    color.a *= components[3];
+    return color;
+}
+
 #endif /* OGX_UTILS_H */

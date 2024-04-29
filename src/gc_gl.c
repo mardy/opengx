@@ -1693,30 +1693,12 @@ int __prepare_lighting()
             continue;
 
         // Multiply the light color by the material color and set as light color
-        GXColor amb_col = {
-            glparamstate.lighting.lights[i].ambient_color[0] * 255.0f,
-            glparamstate.lighting.lights[i].ambient_color[1] * 255.0f,
-            glparamstate.lighting.lights[i].ambient_color[2] * 255.0f,
-            glparamstate.lighting.lights[i].ambient_color[3] * 255.0f
-        };
-
-        GXColor diff_col = {
-            glparamstate.lighting.lights[i].diffuse_color[0] * 255.0f,
-            glparamstate.lighting.lights[i].diffuse_color[1] * 255.0f,
-            glparamstate.lighting.lights[i].diffuse_color[2] * 255.0f,
-            glparamstate.lighting.lights[i].diffuse_color[3] * 255.0f
-        };
+        GXColor amb_col = gxcol_new_fv(glparamstate.lighting.lights[i].ambient_color);
+        GXColor diff_col = gxcol_new_fv(glparamstate.lighting.lights[i].diffuse_color);
 
         if (!glparamstate.lighting.color_material_enabled) {
-            amb_col.r *= glparamstate.lighting.matambient[0];
-            amb_col.g *= glparamstate.lighting.matambient[1];
-            amb_col.b *= glparamstate.lighting.matambient[2];
-            amb_col.a *= glparamstate.lighting.matambient[3];
-
-            diff_col.r *= glparamstate.lighting.matdiffuse[0];
-            diff_col.g *= glparamstate.lighting.matdiffuse[1];
-            diff_col.b *= glparamstate.lighting.matdiffuse[2];
-            diff_col.a *= glparamstate.lighting.matdiffuse[3];
+            gxcol_mulfv(&amb_col, glparamstate.lighting.matambient);
+            gxcol_mulfv(&diff_col, glparamstate.lighting.matdiffuse);
         }
 
         GX_InitLightColor(&glparamstate.lighting.lightobj[i], amb_col);
@@ -1790,12 +1772,7 @@ void __setup_render_stages(int texen)
         int light_mask = __prepare_lighting();
 
         GXColor color_zero = { 0, 0, 0, 0 };
-        GXColor color_gamb = {
-            glparamstate.lighting.globalambient[0] * 255.0f,
-            glparamstate.lighting.globalambient[1] * 255.0f,
-            glparamstate.lighting.globalambient[2] * 255.0f,
-            glparamstate.lighting.globalambient[3] * 255.0f
-        };
+        GXColor color_gamb = gxcol_new_fv(glparamstate.lighting.globalambient);
 
         GX_SetNumChans(2);
         GX_SetNumTevStages(2);
@@ -1808,20 +1785,11 @@ void __setup_render_stages(int texen)
             bool ambient_set = false, diffuse_set = false;
 
             if (glparamstate.lighting.color_material_enabled) {
-                GXColor ccol = {
-                    glparamstate.imm_mode.current_color[0] * 255.0f,
-                    glparamstate.imm_mode.current_color[1] * 255.0f,
-                    glparamstate.imm_mode.current_color[2] * 255.0f,
-                    glparamstate.imm_mode.current_color[3] * 255.0f
-                };
+                GXColor ccol = gxcol_new_fv(glparamstate.imm_mode.current_color);
 
                 if (glparamstate.lighting.color_material_mode == GL_AMBIENT ||
                     glparamstate.lighting.color_material_mode == GL_AMBIENT_AND_DIFFUSE) {
-                    acol = ccol;
-                    acol.r *= glparamstate.lighting.globalambient[0];
-                    acol.g *= glparamstate.lighting.globalambient[1];
-                    acol.b *= glparamstate.lighting.globalambient[2];
-                    acol.a *= glparamstate.lighting.globalambient[3];
+                    acol = gxcol_cpy_mulfv(ccol, glparamstate.lighting.globalambient);
                     ambient_set = true;
                 }
 
@@ -1832,22 +1800,10 @@ void __setup_render_stages(int texen)
                 }
             }
             if (!ambient_set) {
-                GXColor a = {
-                    glparamstate.lighting.matambient[0] * 255.0f,
-                    glparamstate.lighting.matambient[1] * 255.0f,
-                    glparamstate.lighting.matambient[2] * 255.0f,
-                    glparamstate.lighting.matambient[3] * 255.0f,
-                };
-                acol = a;
+                acol = gxcol_new_fv(glparamstate.lighting.matambient);
             }
             if (!diffuse_set) {
-                GXColor d = {
-                    glparamstate.lighting.matdiffuse[0] * 255.0f,
-                    glparamstate.lighting.matdiffuse[1] * 255.0f,
-                    glparamstate.lighting.matdiffuse[2] * 255.0f,
-                    glparamstate.lighting.matdiffuse[3] * 255.0f,
-                };
-                dcol = d;
+                dcol = gxcol_new_fv(glparamstate.lighting.matdiffuse);
             }
 
             GX_SetChanMatColor(GX_COLOR0A0, acol);
@@ -1857,21 +1813,9 @@ void __setup_render_stages(int texen)
         GXColor ecol;
         if (glparamstate.lighting.color_material_enabled &&
             glparamstate.lighting.color_material_mode == GL_EMISSION) {
-            GXColor col = {
-                glparamstate.imm_mode.current_color[0] * 255.0f,
-                glparamstate.imm_mode.current_color[1] * 255.0f,
-                glparamstate.imm_mode.current_color[2] * 255.0f,
-                glparamstate.imm_mode.current_color[3] * 255.0f
-            };
-            ecol = col;
+            ecol = gxcol_new_fv(glparamstate.imm_mode.current_color);
         } else {
-            GXColor col = {
-                glparamstate.lighting.matemission[0] * 255.0f,
-                glparamstate.lighting.matemission[1] * 255.0f,
-                glparamstate.lighting.matemission[2] * 255.0f,
-                glparamstate.lighting.matemission[3] * 255.0f,
-            };
-            ecol = col;
+            ecol = gxcol_new_fv(glparamstate.lighting.matemission);
         };
 
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
@@ -1937,13 +1881,7 @@ void __setup_render_stages(int texen)
             GX_SetTevKColorSel(GX_TEVSTAGE0, GX_TEV_KCSEL_K0);
             GX_SetTevKAlphaSel(GX_TEVSTAGE0, GX_TEV_KASEL_K0_A);
             // Load the color (current GL color)
-            GXColor ccol = {
-                glparamstate.imm_mode.current_color[0] * 255.0f,
-                glparamstate.imm_mode.current_color[1] * 255.0f,
-                glparamstate.imm_mode.current_color[2] * 255.0f,
-                glparamstate.imm_mode.current_color[3] * 255.0f
-            };
-
+            GXColor ccol = gxcol_new_fv(glparamstate.imm_mode.current_color);
             GX_SetTevKColor(GX_KCOLOR0, ccol);
 
             rasterized_color = GX_COLORNULL; // Disable vertex color rasterizer
