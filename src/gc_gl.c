@@ -134,6 +134,7 @@ typedef struct glparams_
         float globalambient[4];
         float matambient[4];
         float matdiffuse[4];
+        float matemission[4];
         char enabled;
 
         GXColor cached_ambient;
@@ -371,6 +372,11 @@ void ogx_initialize()
     glparamstate.lighting.matdiffuse[2] = 0.8f;
     glparamstate.lighting.matdiffuse[3] = 1.0f;
 
+    glparamstate.lighting.matemission[0] = 0.0f;
+    glparamstate.lighting.matemission[1] = 0.0f;
+    glparamstate.lighting.matemission[2] = 0.0f;
+    glparamstate.lighting.matemission[3] = 1.0f;
+
     // Setup data types for every possible attribute
 
     // Typical straight float
@@ -564,6 +570,9 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
     case GL_AMBIENT_AND_DIFFUSE:
         memcpy(glparamstate.lighting.matambient, params, 4 * sizeof(float));
         memcpy(glparamstate.lighting.matdiffuse, params, 4 * sizeof(float));
+        break;
+    case GL_EMISSION:
+        memcpy(glparamstate.lighting.matemission, params, 4 * sizeof(float));
         break;
     default:
         break;
@@ -1815,8 +1824,15 @@ void __setup_render_stages(int texen)
         GX_SetChanAmbColor(GX_COLOR1A1, color_zero);
 
         // STAGE 0: ambient*vert_color -> cprev
-        // In data: d: Raster Color
-        GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+        // In data: d: Raster Color, a: emission color
+        GXColor ecol = {
+            glparamstate.lighting.matemission[0] * 255.0f,
+            glparamstate.lighting.matemission[1] * 255.0f,
+            glparamstate.lighting.matemission[2] * 255.0f,
+            glparamstate.lighting.matemission[3] * 255.0f,
+        };
+        GX_SetTevColor(GX_TEVREG0, ecol);
+        GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_C0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
         GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_RASA);
         // Operation: Pass d
         GX_SetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
