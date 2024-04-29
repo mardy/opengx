@@ -1,4 +1,3 @@
-
 /*****************************************************************************
 Copyright (c) 2011  David Guillen Fandos (david@davidgf.net)
 All rights reserved.
@@ -37,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <gccore.h>
 #include <gctypes.h>
 #include <math.h>
+#include <string.h>
 
 static inline float clampf_01(float n)
 {
@@ -58,4 +58,9 @@ static inline float clampf_11(float n)
         return n;
 }
 
-#endif // OGX_UTILS_H
+static inline void floatcpy(float *dest, const float *src, size_t count)
+{
+    memcpy(dest, src, count * sizeof(float));
+}
+
+#endif /* OGX_UTILS_H */

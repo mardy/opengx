@@ -500,7 +500,7 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
     int lnum = light - GL_LIGHT0;
     switch (pname) {
     case GL_SPOT_DIRECTION:
-        memcpy(glparamstate.lighting.lights[lnum].spot_direction, params, 3 * sizeof(float));
+        floatcpy(glparamstate.lighting.lights[lnum].spot_direction, params, 3);
         break;
     case GL_POSITION:
         if (params[3] == 0) {
@@ -525,10 +525,10 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
         }
         break;
     case GL_DIFFUSE:
-        memcpy(glparamstate.lighting.lights[lnum].diffuse_color, params, sizeof(float) * 4);
+        floatcpy(glparamstate.lighting.lights[lnum].diffuse_color, params, 4);
         break;
     case GL_AMBIENT:
-        memcpy(glparamstate.lighting.lights[lnum].ambient_color, params, sizeof(float) * 4);
+        floatcpy(glparamstate.lighting.lights[lnum].ambient_color, params, 4);
         break;
     case GL_SPECULAR:
         break; // TO BE DONE
@@ -540,7 +540,7 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
 {
     switch (pname) {
     case GL_LIGHT_MODEL_AMBIENT:
-        memcpy(glparamstate.lighting.globalambient, params, 4 * sizeof(float));
+        floatcpy(glparamstate.lighting.globalambient, params, 4);
         break;
     }
     glparamstate.dirty.bits.dirty_material = 1;
@@ -550,17 +550,17 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 {
     switch (pname) {
     case GL_DIFFUSE:
-        memcpy(glparamstate.lighting.matdiffuse, params, 4 * sizeof(float));
+        floatcpy(glparamstate.lighting.matdiffuse, params, 4);
         break;
     case GL_AMBIENT:
-        memcpy(glparamstate.lighting.matambient, params, 4 * sizeof(float));
+        floatcpy(glparamstate.lighting.matambient, params, 4);
         break;
     case GL_AMBIENT_AND_DIFFUSE:
-        memcpy(glparamstate.lighting.matambient, params, 4 * sizeof(float));
-        memcpy(glparamstate.lighting.matdiffuse, params, 4 * sizeof(float));
+        floatcpy(glparamstate.lighting.matambient, params, 4);
+        floatcpy(glparamstate.lighting.matdiffuse, params, 4);
         break;
     case GL_EMISSION:
-        memcpy(glparamstate.lighting.matemission, params, 4 * sizeof(float));
+        floatcpy(glparamstate.lighting.matemission, params, 4);
         break;
     default:
         break;
@@ -727,14 +727,9 @@ void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
     vert[0] = glparamstate.imm_mode.current_texcoord[0];
     vert[1] = glparamstate.imm_mode.current_texcoord[1];
 
-    vert[2] = glparamstate.imm_mode.current_color[0];
-    vert[3] = glparamstate.imm_mode.current_color[1];
-    vert[4] = glparamstate.imm_mode.current_color[2];
-    vert[5] = glparamstate.imm_mode.current_color[3];
+    floatcpy(vert + 2, glparamstate.imm_mode.current_color, 4);
 
-    vert[6] = glparamstate.imm_mode.current_normal[0];
-    vert[7] = glparamstate.imm_mode.current_normal[1];
-    vert[8] = glparamstate.imm_mode.current_normal[2];
+    floatcpy(vert + 6, glparamstate.imm_mode.current_normal, 3);
 
     vert[9] = x;
     vert[10] = y;
