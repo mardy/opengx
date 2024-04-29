@@ -9,7 +9,7 @@ find_package_handle_standard_args(OpenGL
 set(_OPENGL_glapi_LIBRARY "opengx")
 set(OPENGL_FOUND ${OpenGL_FOUND})
 set(OPENGL_XMESA_FOUND OFF)
-set(OPENGL_GLU_FOUND OFF)
+set(OPENGL_GLU_FOUND ON)
 set(OPENGL_OpenGL_FOUND ${OpenGL_FOUND})
 set(OpenGL_GLX_FOUND OFF)
 set(OpenGL_EGL_FOUND ${OpenGL_FOUND})
