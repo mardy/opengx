@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 *****************************************************************************/
 
+#include "debug.h"
 #include "image_DXT.h"
 #include "opengx.h"
 #include "utils.h"
@@ -163,6 +164,7 @@ typedef struct gltexture_
 gltexture_ texture_list[_MAX_GL_TEX];
 
 const GLubyte gl_null_string[1] = { 0 };
+char log_level = 0;
 
 static void swap_rgba(unsigned char *pixels, int num_pixels);
 static void swap_rgb565(unsigned short *pixels, int num_pixels);
@@ -223,6 +225,11 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 
 void ogx_initialize()
 {
+    const char *log_env = getenv("OPENGX_DEBUG");
+    if (log_env) {
+        log_level = log_env[0] - '0';
+    }
+
     GX_SetDispCopyGamma(GX_GM_1_0);
     int i;
     for (i = 0; i < _MAX_GL_TEX; i++) {

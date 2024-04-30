@@ -8,6 +8,7 @@ set(TARGET opengx)
 include(GNUInstallDirs)
 
 add_library(${TARGET} STATIC
+    src/debug.h
     src/gc_gl.c
     src/image_DXT.c
     src/image_DXT.h
