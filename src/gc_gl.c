@@ -66,7 +66,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #define MAX_PROJ_STACK 4   // Proj. matrix stack depth
 #define MAX_MODV_STACK 16  // Modelview matrix stack depth
 #define NUM_VERTS_IM   64  // Maximum number of vertices that can be inside a glBegin/End
-#define MAX_LIGHTS     4   // Max num lights, DO NOT CHANGE
+#define MAX_LIGHTS     4   // Max num lights
+#define MAX_GX_LIGHTS  8
 
 #define ROUND_32B(x) (((x) + 31) & (~31))
 
@@ -134,8 +135,10 @@ typedef struct glparams_
             float spot_cutoff;
             int spot_exponent;
             char enabled;
+            int8_t gx_ambient;
+            int8_t gx_diffuse;
         } lights[MAX_LIGHTS];
-        GXLightObj lightobj[MAX_LIGHTS * 2];
+        GXLightObj lightobj[MAX_GX_LIGHTS];
         float globalambient[4];
         float matambient[4];
         float matdiffuse[4];
@@ -162,6 +165,12 @@ typedef struct gltexture_
     unsigned char wraps, wrapt;
 } gltexture_;
 gltexture_ texture_list[_MAX_GL_TEX];
+
+typedef struct
+{
+    uint8_t ambient_mask;
+    uint8_t diffuse_mask;
+} LightMasks;
 
 const GLubyte gl_null_string[1] = { 0 };
 char log_level = 0;
@@ -291,6 +300,7 @@ void ogx_initialize()
     glparamstate.lighting.enabled = 0;
     for (i = 0; i < MAX_LIGHTS; i++) {
         glparamstate.lighting.lights[i].enabled = false;
+
         glparamstate.lighting.lights[i].atten[0] = 1;
         glparamstate.lighting.lights[i].atten[1] = 0;
         glparamstate.lighting.lights[i].atten[2] = 0;
@@ -1695,50 +1705,123 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 
 ******************************************************/
 
-static int prepare_lighting()
+static inline bool is_black(const float *color)
 {
-    int i, mask = 0;
+    return color[0] == 0.0f && color[1] == 0.0f && color[2] == 0.0f;
+}
+
+static void allocate_lights()
+{
+    /* For the time being, just allocate the lights using a first come, first
+     * served algorithm.
+     * TODO: take the light impact into account: privilege stronger lights, and
+     * light types in this order (probably): directional, ambient, diffuse,
+     * specular. */
+    char lights_needed = 0;
+    bool global_ambient_off = is_black(glparamstate.lighting.globalambient);
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        if (!glparamstate.lighting.lights[i].enabled)
+            continue;
+
+        if (!is_black(glparamstate.lighting.lights[i].ambient_color) &&
+            !global_ambient_off) {
+            /* This ambient light is needed, allocate it */
+            char gx_light = lights_needed++;
+            glparamstate.lighting.lights[i].gx_ambient =
+                gx_light < MAX_GX_LIGHTS ? gx_light : -1;
+        } else {
+            glparamstate.lighting.lights[i].gx_ambient = -1;
+        }
+
+        if (!is_black(glparamstate.lighting.lights[i].diffuse_color)) {
+            /* This diffuse light is needed, allocate it */
+            char gx_light = lights_needed++;
+            glparamstate.lighting.lights[i].gx_diffuse =
+                gx_light < MAX_GX_LIGHTS ? gx_light : -1;
+        } else {
+            glparamstate.lighting.lights[i].gx_diffuse = -1;
+        }
+    }
+
+    if (lights_needed > MAX_GX_LIGHTS) {
+        warning("Excluded %d lights since max is 8", lights_needed - MAX_GX_LIGHTS);
+    }
+}
+
+static LightMasks prepare_lighting()
+{
+    LightMasks masks = { 0, 0 };
+    int i;
+
+    allocate_lights();
+
     for (i = 0; i < MAX_LIGHTS; i++) {
         if (!glparamstate.lighting.lights[i].enabled)
             continue;
 
-        // Multiply the light color by the material color and set as light color
-        GXColor amb_col = gxcol_new_fv(glparamstate.lighting.lights[i].ambient_color);
-        GXColor diff_col = gxcol_new_fv(glparamstate.lighting.lights[i].diffuse_color);
+        int8_t gx_ambient_idx = glparamstate.lighting.lights[i].gx_ambient;
+        int8_t gx_diffuse_idx = glparamstate.lighting.lights[i].gx_diffuse;
+        GXLightObj *gx_ambient = gx_ambient_idx >= 0 ?
+            &glparamstate.lighting.lightobj[gx_ambient_idx] : NULL;
+        GXLightObj *gx_diffuse = gx_diffuse_idx >= 0 ?
+            &glparamstate.lighting.lightobj[gx_diffuse_idx] : NULL;
 
-        if (!glparamstate.lighting.color_material_enabled) {
-            gxcol_mulfv(&amb_col, glparamstate.lighting.matambient);
-            gxcol_mulfv(&diff_col, glparamstate.lighting.matdiffuse);
+        if (gx_ambient) {
+            // Multiply the light color by the material color and set as light color
+            GXColor amb_col = gxcol_new_fv(glparamstate.lighting.lights[i].ambient_color);
+            if (!glparamstate.lighting.color_material_enabled) {
+                gxcol_mulfv(&amb_col, glparamstate.lighting.matambient);
+            }
+            GX_InitLightColor(gx_ambient, amb_col);
+            GX_InitLightPosv(gx_ambient, &glparamstate.lighting.lights[i].position[0]);
         }
 
-        GX_InitLightColor(&glparamstate.lighting.lightobj[i], amb_col);
-        GX_InitLightColor(&glparamstate.lighting.lightobj[i + 4], diff_col);
-
-        GX_InitLightPosv(&glparamstate.lighting.lightobj[i], &glparamstate.lighting.lights[i].position[0]);
-        GX_InitLightPosv(&glparamstate.lighting.lightobj[i + 4], &glparamstate.lighting.lights[i].position[0]);
+        if (gx_diffuse) {
+            GXColor diff_col = gxcol_new_fv(glparamstate.lighting.lights[i].diffuse_color);
+            if (!glparamstate.lighting.color_material_enabled) {
+                gxcol_mulfv(&diff_col, glparamstate.lighting.matdiffuse);
+            }
+            GX_InitLightColor(gx_diffuse, diff_col);
+            GX_InitLightPosv(gx_diffuse, &glparamstate.lighting.lights[i].position[0]);
+        }
 
         // FIXME: Need to consider spotlights
         if (glparamstate.lighting.lights[i].position[3] == 0) {
             // Directional light, it's a point light very far without attenuation
-            GX_InitLightAttn(&glparamstate.lighting.lightobj[i], 1, 0, 0, 1, 0, 0);
-            GX_InitLightAttn(&glparamstate.lighting.lightobj[i + 4], 1, 0, 0, 1, 0, 0);
+            if (gx_ambient) {
+                GX_InitLightAttn(gx_ambient, 1, 0, 0, 1, 0, 0);
+            }
+            if (gx_diffuse) {
+                GX_InitLightAttn(gx_diffuse, 1, 0, 0, 1, 0, 0);
+            }
         } else {
             // Point light
-            GX_InitLightAttn(&glparamstate.lighting.lightobj[i], 1, 0, 0,
-                             glparamstate.lighting.lights[i].atten[0], glparamstate.lighting.lights[i].atten[1], glparamstate.lighting.lights[i].atten[2]);
-            GX_InitLightAttn(&glparamstate.lighting.lightobj[i + 4], 1, 0, 0,
-                             glparamstate.lighting.lights[i].atten[0], glparamstate.lighting.lights[i].atten[1], glparamstate.lighting.lights[i].atten[2]);
-
-            GX_InitLightDir(&glparamstate.lighting.lightobj[i], 0, -1, 0);
-            GX_InitLightDir(&glparamstate.lighting.lightobj[i + 4], 0, -1, 0);
+            if (gx_ambient) {
+                GX_InitLightAttn(gx_ambient, 1, 0, 0,
+                                 glparamstate.lighting.lights[i].atten[0],
+                                 glparamstate.lighting.lights[i].atten[1],
+                                 glparamstate.lighting.lights[i].atten[2]);
+                GX_InitLightDir(gx_ambient, 0, -1, 0);
+            }
+            if (gx_diffuse) {
+                GX_InitLightAttn(gx_diffuse, 1, 0, 0,
+                                 glparamstate.lighting.lights[i].atten[0],
+                                 glparamstate.lighting.lights[i].atten[1],
+                                 glparamstate.lighting.lights[i].atten[2]);
+                GX_InitLightDir(gx_diffuse, 0, -1, 0);
+            }
         }
 
-        GX_LoadLightObj(&glparamstate.lighting.lightobj[i], 1 << i);
-        GX_LoadLightObj(&glparamstate.lighting.lightobj[i + 4], (1 << i) << 4);
-
-        mask |= (1 << (i));
+        if (gx_ambient) {
+            GX_LoadLightObj(gx_ambient, 1 << gx_ambient_idx);
+            masks.ambient_mask |= (1 << gx_ambient_idx);
+        }
+        if (gx_diffuse) {
+            GX_LoadLightObj(gx_diffuse, 1 << gx_diffuse_idx);
+            masks.diffuse_mask |= (1 << gx_diffuse_idx);
+        }
     }
-    return mask;
+    return masks;
 }
 
 static unsigned char draw_mode(GLenum mode)
@@ -1779,7 +1862,7 @@ static unsigned char draw_mode(GLenum mode)
 static void setup_render_stages(int texen)
 {
     if (glparamstate.lighting.enabled) {
-        int light_mask = prepare_lighting();
+        LightMasks light_mask = prepare_lighting();
 
         GXColor color_zero = { 0, 0, 0, 0 };
         GXColor color_gamb = gxcol_new_fv(glparamstate.lighting.globalambient);
@@ -1829,11 +1912,11 @@ static void setup_render_stages(int texen)
         };
 
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
-        GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask, GX_DF_NONE, GX_AF_SPOT);
+        GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask.ambient_mask, GX_DF_NONE, GX_AF_SPOT);
         GX_SetChanAmbColor(GX_COLOR0A0, color_gamb);
 
         // Color1 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is zero)
-        GX_SetChanCtrl(GX_COLOR1A1, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask << 4, GX_DF_CLAMP, GX_AF_SPOT);
+        GX_SetChanCtrl(GX_COLOR1A1, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask.diffuse_mask, GX_DF_CLAMP, GX_AF_SPOT);
         GX_SetChanAmbColor(GX_COLOR1A1, color_zero);
 
         // STAGE 0: ambient*vert_color -> cprev
