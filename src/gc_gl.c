@@ -177,30 +177,6 @@ void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count, bool
 void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color, int count,
                            int ne, int color_provide, int texen, bool loop);
 
-// We have to reverse the product, as we store the matrices as colmajor (otherwise said trasposed)
-// we need to compute C = A*B (as rowmajor, "regular") then C = B^T * A^T = (A*B)^T
-// so we compute the product and transpose the result (for storage) in one go.
-//                                        Reversed operands a and b
-static inline void _gl_matrix_multiply(float *dst, float *b, float *a)
-{
-    dst[0] = a[0] * b[0] + a[1] * b[4] + a[2] * b[8] + a[3] * b[12];
-    dst[1] = a[0] * b[1] + a[1] * b[5] + a[2] * b[9] + a[3] * b[13];
-    dst[2] = a[0] * b[2] + a[1] * b[6] + a[2] * b[10] + a[3] * b[14];
-    dst[3] = a[0] * b[3] + a[1] * b[7] + a[2] * b[11] + a[3] * b[15];
-    dst[4] = a[4] * b[0] + a[5] * b[4] + a[6] * b[8] + a[7] * b[12];
-    dst[5] = a[4] * b[1] + a[5] * b[5] + a[6] * b[9] + a[7] * b[13];
-    dst[6] = a[4] * b[2] + a[5] * b[6] + a[6] * b[10] + a[7] * b[14];
-    dst[7] = a[4] * b[3] + a[5] * b[7] + a[6] * b[11] + a[7] * b[15];
-    dst[8] = a[8] * b[0] + a[9] * b[4] + a[10] * b[8] + a[11] * b[12];
-    dst[9] = a[8] * b[1] + a[9] * b[5] + a[10] * b[9] + a[11] * b[13];
-    dst[10] = a[8] * b[2] + a[9] * b[6] + a[10] * b[10] + a[11] * b[14];
-    dst[11] = a[8] * b[3] + a[9] * b[7] + a[10] * b[11] + a[11] * b[15];
-    dst[12] = a[12] * b[0] + a[13] * b[4] + a[14] * b[8] + a[15] * b[12];
-    dst[13] = a[12] * b[1] + a[13] * b[5] + a[14] * b[9] + a[15] * b[13];
-    dst[14] = a[12] * b[2] + a[13] * b[6] + a[14] * b[10] + a[15] * b[14];
-    dst[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
-}
-
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
         float trans[3][4];                                         \
@@ -800,11 +776,11 @@ void glMultMatrixf(const GLfloat *m)
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)m);
+        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)m);
         break;
     case 1:
         memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)m);
+        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)m);
         break;
     default:
         break;
@@ -868,11 +844,11 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     case 1:
         memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     default:
         break;
@@ -904,11 +880,11 @@ void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     case 1:
         memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     default:
         break;
@@ -950,11 +926,11 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     case 1:
         memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        _gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
         break;
     default:
         break;
@@ -2239,23 +2215,6 @@ void gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFa
     glMultMatrixf((float *)m);
 }
 
-void _normalize(GLfloat v[3])
-{
-    GLfloat r;
-    r = (GLfloat)sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    if (r == 0.0f)
-        return;
-
-    v[0] /= r;
-    v[1] /= r;
-    v[2] /= r;
-}
-void _cross(GLfloat v1[3], GLfloat v2[3], GLfloat result[3])
-{
-    result[0] = v1[1] * v2[2] - v1[2] * v2[1];
-    result[1] = v1[2] * v2[0] - v1[0] * v2[2];
-    result[2] = v1[0] * v2[1] - v1[1] * v2[0];
-}
 void gluLookAt(GLdouble eyex, GLdouble eyey, GLdouble eyez, GLdouble centerx,
                GLdouble centery, GLdouble centerz, GLdouble upx, GLdouble upy, GLdouble upz)
 {
@@ -2271,10 +2230,10 @@ void gluLookAt(GLdouble eyex, GLdouble eyey, GLdouble eyez, GLdouble centerx,
     up[1] = upy;
     up[2] = upz;
 
-    _normalize(forward);
-    _cross(forward, up, side);
-    _normalize(side);
-    _cross(side, forward, up);
+    normalize(forward);
+    cross(forward, up, side);
+    normalize(side);
+    cross(side, forward, up);
 
     m[0][3] = 0;
     m[1][3] = 0;
