@@ -726,6 +726,13 @@ void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
     glparamstate.imm_mode.current_normal[2] = nz;
 }
 
+void glNormal3fv(const GLfloat *v)
+{
+    glparamstate.imm_mode.current_normal[0] = v[0];
+    glparamstate.imm_mode.current_normal[1] = v[1];
+    glparamstate.imm_mode.current_normal[2] = v[2];
+}
+
 void glVertex2i(GLint x, GLint y)
 {
     glVertex3f(x, y, 0.0f);
@@ -2264,6 +2271,35 @@ void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, f
             GX_TexCoord2f32(texc[0], texc[1]);
         }
     }
+}
+
+void glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
+               GLdouble near, GLdouble far)
+{
+    Mtx44 mt;
+    f32 tmp;
+
+    tmp = 1.0f / (right - left);
+    mt[0][0] = (2 * near) * tmp;
+    mt[0][1] = 0.0f;
+    mt[0][2] = (right + left) * tmp;
+    mt[0][3] = 0.0f;
+    tmp = 1.0f / (top - bottom);
+    mt[1][0] = 0.0f;
+    mt[1][1] = (2 * near) * tmp;
+    mt[1][2] = (top + bottom) * tmp;
+    mt[1][3] = 0.0f;
+    tmp = 1.0f / (far - near);
+    mt[2][0] = 0.0f;
+    mt[2][1] = 0.0f;
+    mt[2][2] = -near * tmp;
+    mt[2][3] = -(far * near) * tmp;
+    mt[3][0] = 0.0f;
+    mt[3][1] = 0.0f;
+    mt[3][2] = -1.0f;
+    mt[3][3] = 0.0f;
+
+    glMultMatrixf((float *)mt);
 }
 
 void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val)
