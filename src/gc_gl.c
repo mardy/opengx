@@ -172,10 +172,11 @@ static void scramble_4b(unsigned char *src, void *dst, const unsigned int width,
 void scale_internal(int components, int widthin, int heightin, const unsigned char *datain,
                     int widthout, int heightout, unsigned char *dataout);
 
-void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count, bool loop);
-void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count, bool loop);
-void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color, int count,
-                           int ne, int color_provide, int texen, bool loop);
+static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
+                                        int count, bool loop);
+static void draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count, bool loop);
+static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color,
+                                int count, int ne, int color_provide, int texen, bool loop);
 
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
@@ -1158,7 +1159,7 @@ void glLineWidth(GLfloat width)
 
 // If bytes per pixel is decimal (0,5 0,25 ...) we encode the number
 // as the divisor in a negative way
-static int _calc_memory(int w, int h, int bytespp)
+static int calc_memory(int w, int h, int bytespp)
 {
     if (bytespp > 0) {
         return w * h * bytespp;
@@ -1167,11 +1168,11 @@ static int _calc_memory(int w, int h, int bytespp)
     }
 }
 // Returns the number of bytes required to store a texture with all its bitmaps
-static int _calc_tex_size(int w, int h, int bytespp)
+static int calc_tex_size(int w, int h, int bytespp)
 {
     int size = 0;
     while (w > 1 || h > 1) {
-        int mipsize = _calc_memory(w, h, bytespp);
+        int mipsize = calc_memory(w, h, bytespp);
         if ((mipsize % 32) != 0)
             mipsize += (32 - (mipsize % 32)); // Alignment
         size += mipsize;
@@ -1183,7 +1184,7 @@ static int _calc_tex_size(int w, int h, int bytespp)
     return size;
 }
 // Returns the number of bytes required to store a texture with all its bitmaps
-static int _calc_original_size(int level, int s)
+static int calc_original_size(int level, int s)
 {
     while (level > 0) {
         s = 2 * s;
@@ -1192,11 +1193,11 @@ static int _calc_original_size(int level, int s)
     return s;
 }
 // Given w,h,level,and bpp, returns the offset to the mipmap at level "level"
-static int _calc_mipmap_offset(int level, int w, int h, int b)
+static int calc_mipmap_offset(int level, int w, int h, int b)
 {
     int size = 0;
     while (level > 0) {
-        int mipsize = _calc_memory(w, h, b);
+        int mipsize = calc_memory(w, h, b);
         if ((mipsize % 32) != 0)
             mipsize += (32 - (mipsize % 32)); // Alignment
         size += mipsize;
@@ -1289,8 +1290,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
     // We *may* need to delete and create a new texture, depending if the user wants to add some mipmap levels
     // or wants to create a new texture from scratch
-    int wi = _calc_original_size(level, width);
-    int he = _calc_original_size(level, height);
+    int wi = calc_original_size(level, width);
+    int he = calc_original_size(level, height);
     currtex->bytespp = bytesperpixelinternal;
 
     // Check if the texture has changed its geometry and proceed to delete it
@@ -1299,12 +1300,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         if (currtex->data != 0)
             free(currtex->data);
         if (level == 0) {
-            int required_size = _calc_memory(width, height, bytesperpixelinternal);
+            int required_size = calc_memory(width, height, bytesperpixelinternal);
             int tex_size_rnd = ROUND_32B(required_size);
             currtex->data = memalign(32, tex_size_rnd);
             currtex->onelevel = 1;
         } else {
-            int required_size = _calc_tex_size(wi, he, bytesperpixelinternal);
+            int required_size = calc_tex_size(wi, he, bytesperpixelinternal);
             int tex_size_rnd = ROUND_32B(required_size);
             currtex->data = memalign(32, tex_size_rnd);
             currtex->onelevel = 0;
@@ -1323,12 +1324,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // We allocated a onelevel texture (base level 0) but now
         // we are uploading a non-zero level, so we need to create a mipmap capable buffer
         // and copy the level zero texture
-        unsigned int tsize = _calc_memory(wi, he, bytesperpixelinternal);
+        unsigned int tsize = calc_memory(wi, he, bytesperpixelinternal);
         unsigned char *tempbuf = malloc(tsize);
         memcpy(tempbuf, currtex->data, tsize);
         free(currtex->data);
 
-        int required_size = _calc_tex_size(wi, he, bytesperpixelinternal);
+        int required_size = calc_tex_size(wi, he, bytesperpixelinternal);
         int tex_size_rnd = ROUND_32B(required_size);
         currtex->data = memalign(32, tex_size_rnd);
         currtex->onelevel = 0;
@@ -1369,7 +1370,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         }
 
         // Calculate the offset and address of the mipmap
-        int offset = _calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
+        int offset = calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
         unsigned char *dst_addr = currtex->data;
         dst_addr += offset;
 
@@ -1386,13 +1387,13 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // Compressed texture
 
         // Calculate the offset and address of the mipmap
-        int offset = _calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
+        int offset = calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
         unsigned char *dst_addr = currtex->data;
         dst_addr += offset;
 
         convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr, width, height, needswap);
 
-        DCFlushRange(dst_addr, _calc_memory(width, height, bytesperpixelinternal));
+        DCFlushRange(dst_addr, calc_memory(width, height, bytesperpixelinternal));
     }
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
@@ -1661,7 +1662,7 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 
 ******************************************************/
 
-int __prepare_lighting()
+static int prepare_lighting()
 {
     int i, mask = 0;
     for (i = 0; i < MAX_LIGHTS; i++) {
@@ -1707,7 +1708,7 @@ int __prepare_lighting()
     return mask;
 }
 
-unsigned char __draw_mode(GLenum mode)
+static unsigned char draw_mode(GLenum mode)
 {
     unsigned char gxmode;
     switch (mode) {
@@ -1742,10 +1743,10 @@ unsigned char __draw_mode(GLenum mode)
     return gxmode;
 }
 
-void __setup_render_stages(int texen)
+static void setup_render_stages(int texen)
 {
     if (glparamstate.lighting.enabled) {
-        int light_mask = __prepare_lighting();
+        int light_mask = prepare_lighting();
 
         GXColor color_zero = { 0, 0, 0, 0 };
         GXColor color_gamb = gxcol_new_fv(glparamstate.lighting.globalambient);
@@ -1899,7 +1900,7 @@ void __setup_render_stages(int texen)
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
 
-    unsigned char gxmode = __draw_mode(mode);
+    unsigned char gxmode = draw_mode(mode);
     if (gxmode == 0xff)
         return;
 
@@ -1924,7 +1925,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     ptr_color += (glparamstate.color_stride * first);
     ptr_normal += (glparamstate.normal_stride * first);
 
-    __setup_render_stages(texen);
+    setup_render_stages(texen);
 
     // Not using indices
     GX_ClearVtxDesc();
@@ -1974,12 +1975,13 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     if (glparamstate.normal_enabled && !glparamstate.color_enabled) {
         if (texen) {
-            __draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count, loop);
+            draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count, loop);
         } else {
-            __draw_arrays_pos_normal(ptr_pos, ptr_normal, count, loop);
+            draw_arrays_pos_normal(ptr_pos, ptr_normal, count, loop);
         }
     } else {
-        __draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color, count, glparamstate.normal_enabled, color_provide, texen, loop);
+        draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
+                            count, glparamstate.normal_enabled, color_provide, texen, loop);
     }
     GX_End();
 
@@ -1990,7 +1992,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
 
-    unsigned char gxmode = __draw_mode(mode);
+    unsigned char gxmode = draw_mode(mode);
     if (gxmode == 0xff)
         return;
 
@@ -2007,7 +2009,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     // Create data pointers
     unsigned short *ind = (unsigned short *)indices;
 
-    __setup_render_stages(texen);
+    setup_render_stages(texen);
 
     // Not using indices
     GX_ClearVtxDesc();
@@ -2086,8 +2088,8 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     glparamstate.dirty.all = 0;
 }
 
-void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal, int count,
-                                   bool loop)
+static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
+                                        int count, bool loop)
 {
     int i;
     float *pos = ptr_pos, *texc = ptr_texc, *normal = ptr_normal;
@@ -2107,8 +2109,9 @@ void __draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_n
         GX_TexCoord2f32(texc[0], texc[1]);
     }
 }
-void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count,
-                              bool loop)
+
+static void draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count,
+                                   bool loop)
 {
     int i;
     float *pos = ptr_pos, *normal = ptr_normal;
@@ -2124,8 +2127,9 @@ void __draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count,
         GX_Normal3f32(normal[0], normal[1], normal[2]);
     }
 }
-void __draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color, int count,
-                           int ne, int color_provide, int texen, bool loop)
+
+static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color,
+                                int count, int ne, int color_provide, int texen, bool loop)
 {
 
     int i;
@@ -2305,7 +2309,7 @@ void glStencilMask(GLuint mask) {} // Should use Alpha testing to achieve simila
 void glShadeModel(GLenum mode) {}  // In theory we don't have GX equivalent?
 void glHint(GLenum target, GLenum mode) {}
 
-unsigned char _gcgl_texwrap_conv(GLint param)
+static unsigned char gcgl_texwrap_conv(GLint param)
 {
     switch (param) {
     case GL_MIRRORED_REPEAT:
@@ -2327,11 +2331,11 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
 
     switch (pname) {
     case GL_TEXTURE_WRAP_S:
-        currtex->wraps = _gcgl_texwrap_conv(param);
+        currtex->wraps = gcgl_texwrap_conv(param);
         GX_InitTexObjWrapMode(&currtex->texobj, currtex->wraps, currtex->wrapt);
         break;
     case GL_TEXTURE_WRAP_T:
-        texture_list[glparamstate.glcurtex].wrapt = _gcgl_texwrap_conv(param);
+        texture_list[glparamstate.glcurtex].wrapt = gcgl_texwrap_conv(param);
         GX_InitTexObjWrapMode(&currtex->texobj, currtex->wraps, currtex->wrapt);
         break;
     };
