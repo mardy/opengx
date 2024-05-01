@@ -69,6 +69,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #define ROUND_32B(x) (((x) + 31) & (~31))
 
+typedef float VertexData[12];
+
 typedef struct glparams_
 {
     Mtx44 modelview_matrix;
@@ -100,7 +102,8 @@ typedef struct glparams_
         float current_texcoord[2];
         float current_normal[3];
         int current_numverts;
-        float current_vertices[NUM_VERTS_IM][12];
+        int current_vertices_size;
+        VertexData *current_vertices;
         GLenum prim_type;
     } imm_mode;
 
@@ -614,6 +617,14 @@ void glBegin(GLenum mode)
     // Just discard all the data!
     glparamstate.imm_mode.current_numverts = 0;
     glparamstate.imm_mode.prim_type = mode;
+    if (!glparamstate.imm_mode.current_vertices) {
+        int count = 64;
+        void *buffer = malloc(count * sizeof(VertexData));
+        if (buffer) {
+            glparamstate.imm_mode.current_vertices = buffer;
+            glparamstate.imm_mode.current_vertices_size = count;
+        }
+    }
 }
 
 void glEnd()
@@ -696,8 +707,16 @@ void glVertex2f(GLfloat x, GLfloat y)
 
 void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
 {
-    if (glparamstate.imm_mode.current_numverts >= NUM_VERTS_IM)
-        return;
+    if (glparamstate.imm_mode.current_numverts >= glparamstate.imm_mode.current_vertices_size) {
+        if (!glparamstate.imm_mode.current_vertices) return;
+        int current_size = glparamstate.imm_mode.current_vertices_size;
+        int new_size = current_size < 256 ? (current_size * 2) : (current_size + 256);
+        void *new_buffer = realloc(glparamstate.imm_mode.current_vertices,
+                                   new_size * sizeof(VertexData));
+        if (!new_buffer) return;
+        glparamstate.imm_mode.current_vertices_size = new_size;
+        glparamstate.imm_mode.current_vertices = new_buffer;
+    }
 
     // GL_T2F_C4F_N3F_V3F
     float *vert = glparamstate.imm_mode.current_vertices[glparamstate.imm_mode.current_numverts++];
