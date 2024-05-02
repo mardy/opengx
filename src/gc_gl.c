@@ -146,6 +146,16 @@ typedef struct glparams_
 
         GXColor cached_ambient;
     } lighting;
+
+    struct _fog
+    {
+        u8 enabled;
+        uint16_t mode;
+        float color[4];
+        float density;
+        float start;
+        float end;
+    } fog;
 } glparams_;
 glparams_ glparamstate;
 
@@ -220,6 +230,29 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
         guMtxTranspose(mvinverse, normalm);                            \
         GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
     }
+
+/* Deduce the projection type (perspective vs orthogonal) and the values of the
+ * near and far clipping plane from the projection matrix.
+ * Note that the formulas for computing "near" and "far" are only valid for
+ * matrices created by opengx or by the gu* family of GX functions. OpenGL
+ * books use different formulas.
+ */
+static void get_projection_info(u8 *type, float *near, float *far)
+{
+    float A, B;
+
+    A = glparamstate.projection_matrix[2][2];
+    B = glparamstate.projection_matrix[3][2];
+
+    if (glparamstate.projection_matrix[3][3] == 0) {
+        *type = GX_PERSPECTIVE;
+        *near = B / (A - 1.0);
+    } else {
+        *type = GX_ORTHOGRAPHIC;
+        *near = (B + 1.0) / A;
+    }
+    *far = B / A;
+}
 
 void ogx_initialize()
 {
@@ -346,6 +379,16 @@ void ogx_initialize()
     glparamstate.lighting.color_material_enabled = 0;
     glparamstate.lighting.color_material_mode = GL_AMBIENT_AND_DIFFUSE;
 
+    glparamstate.fog.enabled = false;
+    glparamstate.fog.mode = GL_EXP;
+    glparamstate.fog.color[0] = 0.0f;
+    glparamstate.fog.color[1] = 0.0f;
+    glparamstate.fog.color[2] = 0.0f;
+    glparamstate.fog.color[3] = 0.0f;
+    glparamstate.fog.density = 1.0f;
+    glparamstate.fog.start = 0.0f;
+    glparamstate.fog.end = 1.0f;
+
     // Setup data types for every possible attribute
 
     // Typical straight float
@@ -396,6 +439,9 @@ void glEnable(GLenum cap)
         glparamstate.ztest = GX_TRUE;
         glparamstate.dirty.bits.dirty_z = 1;
         break;
+    case GL_FOG:
+        glparamstate.fog.enabled = 1;
+        break;
     case GL_LIGHTING:
         glparamstate.lighting.enabled = 1;
         glparamstate.dirty.bits.dirty_lighting = 1;
@@ -445,6 +491,53 @@ void glDisable(GLenum cap)
         glparamstate.dirty.bits.dirty_lighting = 1;
         break;
     default:
+        break;
+    }
+}
+
+void glFogf(GLenum pname, GLfloat param)
+{
+    switch (pname) {
+    case GL_FOG_MODE:
+        glFogi(pname, (int)param);
+        break;
+    case GL_FOG_DENSITY:
+        glparamstate.fog.density = param;
+        break;
+    case GL_FOG_START:
+        glparamstate.fog.start = param;
+        break;
+    case GL_FOG_END:
+        glparamstate.fog.end = param;
+        break;
+    }
+}
+
+void glFogi(GLenum pname, GLint param)
+{
+    switch (pname) {
+    case GL_FOG_MODE:
+        glparamstate.fog.mode = param;
+        break;
+    case GL_FOG_DENSITY:
+    case GL_FOG_START:
+    case GL_FOG_END:
+        glFogf(pname, param);
+        break;
+    }
+}
+
+void glFogfv(GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_FOG_MODE:
+    case GL_FOG_DENSITY:
+    case GL_FOG_START:
+    case GL_FOG_END:
+        glFogf(pname, params[0]);
+        break;
+    case GL_FOG_COLOR:
+        floatcpy(glparamstate.fog.color, params, 4);
         break;
     }
 }
@@ -1031,6 +1124,11 @@ void glClear(GLbitfield mask)
     GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
     GX_InvVtxCache();
+
+    if (glparamstate.fog.enabled) {
+        /* Disable fog while clearing */
+        GX_SetFog(GX_FOG_NONE, 0.0, 0.0, 0.0, 0.0, glparamstate.clear_color);
+    }
 
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
     GX_Position3f32(-1, -1, -depth);
@@ -1769,6 +1867,61 @@ static unsigned char draw_mode(GLenum mode)
     return gxmode;
 }
 
+static void setup_fog()
+{
+    u8 mode, proj_type;
+    GXColor color;
+    float start, end, near, far;
+
+    /* GX_SetFog() works differently from OpenGL:
+     * 1. It requires the caller to pass the near and far coordinates
+     * 2. It applies the "start" and "end" parameters to all curve types
+     *    (OpenGL only uses them for linear fogging)
+     * 3. It does not support the "density" parameter
+     */
+
+    if (glparamstate.fog.enabled) {
+        get_projection_info(&proj_type, &near, &far);
+
+        color = gxcol_new_fv(glparamstate.fog.color);
+        switch (glparamstate.fog.mode) {
+        case GL_EXP: mode = GX_FOG_EXP; break;
+        case GL_EXP2: mode = GX_FOG_EXP2; break;
+        case GL_LINEAR: mode = GX_FOG_LIN; break;
+        }
+        if (proj_type == GX_ORTHOGRAPHIC)
+            mode += (GX_FOG_ORTHO_LIN - GX_FOG_PERSP_LIN);
+
+        if (glparamstate.fog.mode == GL_LINEAR) {
+            start = glparamstate.fog.start;
+            end = glparamstate.fog.end;
+        } else {
+            /* Tricky part: GX spreads the exponent function so that it affects
+             * the range from "start" to "end" (though it's unclear how it
+             * does, since the 0 value is never actually reached), whereas
+             * openGL expects it to affect the whole world, but with a "speed"
+             * dictated by the "density" parameter.
+             * So, we emulate the density by playing with the "end" parameter.
+             * The factors used in the computations of "end" below have been
+             * found empirically, comparing the result with a desktop OpenGL
+             * implementation.
+             */
+            start = near;
+            if (glparamstate.fog.density <= 0.0) {
+                end = far;
+            } else if (glparamstate.fog.mode == GL_EXP2) {
+                end = 2.0f / glparamstate.fog.density;
+            } else { /* GL_EXP */
+                end = 5.0f / glparamstate.fog.density;
+            }
+        }
+    } else {
+        start = end = near = far = 0.0f;
+        mode = GX_FOG_NONE;
+    }
+    GX_SetFog(mode, start, end, near, far, color);
+}
+
 static void setup_render_stages(int texen)
 {
     if (glparamstate.lighting.enabled) {
@@ -1921,6 +2074,8 @@ static void setup_render_stages(int texen)
             GX_SetNumTexGens(0);
         }
     }
+
+    setup_fog();
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
