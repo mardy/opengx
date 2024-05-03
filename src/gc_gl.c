@@ -2305,9 +2305,9 @@ void glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
 void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val)
 {
     Mtx44 newmat;
+    // Same as GX's guOrtho, but transposed
     float x = (left + right) / (left - right);
     float y = (bottom + top) / (bottom - top);
-    //	float z = (near_val+far_val)/(near_val-far_val);
     float z = far_val / (near_val - far_val);
     newmat[0][0] = 2.0f / (right - left);
     newmat[0][1] = 0.0f;
@@ -2319,7 +2319,7 @@ void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdou
     newmat[1][3] = 0;
     newmat[2][0] = 0.0f;
     newmat[2][1] = 0.0f;
-    newmat[2][2] = 2.0f / (near_val - far_val);
+    newmat[2][2] = 1.0f / (near_val - far_val);
     newmat[2][3] = 0;
     newmat[3][0] = x;
     newmat[3][1] = y;
