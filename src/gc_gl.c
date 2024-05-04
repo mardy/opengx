@@ -1814,18 +1814,12 @@ static LightMasks prepare_lighting()
         if (gx_ambient) {
             // Multiply the light color by the material color and set as light color
             GXColor amb_col = gxcol_new_fv(glparamstate.lighting.lights[i].ambient_color);
-            if (!glparamstate.lighting.color_material_enabled) {
-                gxcol_mulfv(&amb_col, glparamstate.lighting.matambient);
-            }
             GX_InitLightColor(gx_ambient, amb_col);
             GX_InitLightPosv(gx_ambient, &glparamstate.lighting.lights[i].position[0]);
         }
 
         if (gx_diffuse) {
             GXColor diff_col = gxcol_new_fv(glparamstate.lighting.lights[i].diffuse_color);
-            if (!glparamstate.lighting.color_material_enabled) {
-                gxcol_mulfv(&diff_col, glparamstate.lighting.matdiffuse);
-            }
             GX_InitLightColor(gx_diffuse, diff_col);
             GX_InitLightPosv(gx_diffuse, &glparamstate.lighting.lights[i].position[0]);
         }
@@ -1841,9 +1835,6 @@ static LightMasks prepare_lighting()
             }
             if (gx_specular) {
                 GXColor spec_col = gxcol_new_fv(glparamstate.lighting.lights[i].specular_color);
-                if (!glparamstate.lighting.color_material_enabled) {
-                    gxcol_mulfv(&spec_col, glparamstate.lighting.matspecular);
-                }
 
                 /* We need to compute the normals of the direction */
                 float normal[3] = {
@@ -1967,6 +1958,10 @@ static void setup_render_stages(int texen)
                 dcol = gxcol_new_fv(glparamstate.lighting.matdiffuse);
             }
 
+            /* We would like to find a way to put matspecular into
+             * GX_SetChanMatColor(GX_COLOR0A0), since that's the color that GX
+             * combines with the specular light. But we also need this register
+             * for the ambient color, which is arguably more important. */
             GX_SetChanMatColor(GX_COLOR0A0, acol);
             GX_SetChanMatColor(GX_COLOR1A1, dcol);
         }
