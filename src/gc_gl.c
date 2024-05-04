@@ -131,18 +131,22 @@ typedef struct glparams_
             float spot_direction[3];
             float ambient_color[4];
             float diffuse_color[4];
+            float specular_color[4];
             float atten[3];
             float spot_cutoff;
             int spot_exponent;
             char enabled;
             int8_t gx_ambient;
             int8_t gx_diffuse;
+            int8_t gx_specular;
         } lights[MAX_LIGHTS];
         GXLightObj lightobj[MAX_GX_LIGHTS];
         float globalambient[4];
         float matambient[4];
         float matdiffuse[4];
         float matemission[4];
+        float matspecular[4];
+        float matshininess;
         char enabled;
 
         char color_material_enabled;
@@ -170,6 +174,7 @@ typedef struct
 {
     uint8_t ambient_mask;
     uint8_t diffuse_mask;
+    uint8_t specular_mask;
 } LightMasks;
 
 const GLubyte gl_null_string[1] = { 0 };
@@ -329,12 +334,21 @@ void ogx_initialize()
             glparamstate.lighting.lights[i].diffuse_color[0] = 1;
             glparamstate.lighting.lights[i].diffuse_color[1] = 1;
             glparamstate.lighting.lights[i].diffuse_color[2] = 1;
+
+            glparamstate.lighting.lights[i].specular_color[0] = 1;
+            glparamstate.lighting.lights[i].specular_color[1] = 1;
+            glparamstate.lighting.lights[i].specular_color[2] = 1;
         } else {
             glparamstate.lighting.lights[i].diffuse_color[0] = 0;
             glparamstate.lighting.lights[i].diffuse_color[1] = 0;
             glparamstate.lighting.lights[i].diffuse_color[2] = 0;
+
+            glparamstate.lighting.lights[i].specular_color[0] = 0;
+            glparamstate.lighting.lights[i].specular_color[1] = 0;
+            glparamstate.lighting.lights[i].specular_color[2] = 0;
         }
         glparamstate.lighting.lights[i].diffuse_color[3] = 1;
+        glparamstate.lighting.lights[i].specular_color[3] = 1;
 
         glparamstate.lighting.lights[i].spot_cutoff = 180.0f;
         glparamstate.lighting.lights[i].spot_exponent = 0;
@@ -359,6 +373,12 @@ void ogx_initialize()
     glparamstate.lighting.matemission[1] = 0.0f;
     glparamstate.lighting.matemission[2] = 0.0f;
     glparamstate.lighting.matemission[3] = 1.0f;
+
+    glparamstate.lighting.matspecular[0] = 0.0f;
+    glparamstate.lighting.matspecular[1] = 0.0f;
+    glparamstate.lighting.matspecular[2] = 0.0f;
+    glparamstate.lighting.matspecular[3] = 1.0f;
+    glparamstate.lighting.matshininess = 0.0f;
 
     glparamstate.lighting.color_material_enabled = 0;
     glparamstate.lighting.color_material_mode = GL_AMBIENT_AND_DIFFUSE;
@@ -528,7 +548,8 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
         floatcpy(glparamstate.lighting.lights[lnum].ambient_color, params, 4);
         break;
     case GL_SPECULAR:
-        break; // TO BE DONE
+        floatcpy(glparamstate.lighting.lights[lnum].specular_color, params, 4);
+        break;
     }
     glparamstate.dirty.bits.dirty_lighting = 1;
 }
@@ -558,6 +579,12 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
         break;
     case GL_EMISSION:
         floatcpy(glparamstate.lighting.matemission, params, 4);
+        break;
+    case GL_SPECULAR:
+        floatcpy(glparamstate.lighting.matspecular, params, 4);
+        break;
+    case GL_SHININESS:
+        glparamstate.lighting.matshininess = params[0];
         break;
     default:
         break;
@@ -1741,6 +1768,21 @@ static void allocate_lights()
         } else {
             glparamstate.lighting.lights[i].gx_diffuse = -1;
         }
+
+        /* GX support specular light only for directional light sources. For
+         * this reason we enable the specular light only if the "w" component
+         * of the position is 0. */
+        if (!is_black(glparamstate.lighting.lights[i].specular_color) &&
+            !is_black(glparamstate.lighting.matspecular) &&
+            glparamstate.lighting.matshininess > 0.0 &&
+            glparamstate.lighting.lights[i].position[3] == 0.0f) {
+            /* This specular light is needed, allocate it */
+            char gx_light = lights_needed++;
+            glparamstate.lighting.lights[i].gx_specular =
+                gx_light < MAX_GX_LIGHTS ? gx_light : -1;
+        } else {
+            glparamstate.lighting.lights[i].gx_specular = -1;
+        }
     }
 
     if (lights_needed > MAX_GX_LIGHTS) {
@@ -1761,10 +1803,13 @@ static LightMasks prepare_lighting()
 
         int8_t gx_ambient_idx = glparamstate.lighting.lights[i].gx_ambient;
         int8_t gx_diffuse_idx = glparamstate.lighting.lights[i].gx_diffuse;
+        int8_t gx_specular_idx = glparamstate.lighting.lights[i].gx_specular;
         GXLightObj *gx_ambient = gx_ambient_idx >= 0 ?
             &glparamstate.lighting.lightobj[gx_ambient_idx] : NULL;
         GXLightObj *gx_diffuse = gx_diffuse_idx >= 0 ?
             &glparamstate.lighting.lightobj[gx_diffuse_idx] : NULL;
+        GXLightObj *gx_specular = gx_specular_idx >= 0 ?
+            &glparamstate.lighting.lightobj[gx_specular_idx] : NULL;
 
         if (gx_ambient) {
             // Multiply the light color by the material color and set as light color
@@ -1794,6 +1839,23 @@ static LightMasks prepare_lighting()
             if (gx_diffuse) {
                 GX_InitLightAttn(gx_diffuse, 1, 0, 0, 1, 0, 0);
             }
+            if (gx_specular) {
+                GXColor spec_col = gxcol_new_fv(glparamstate.lighting.lights[i].specular_color);
+                if (!glparamstate.lighting.color_material_enabled) {
+                    gxcol_mulfv(&spec_col, glparamstate.lighting.matspecular);
+                }
+
+                /* We need to compute the normals of the direction */
+                float normal[3] = {
+                    -glparamstate.lighting.lights[i].position[0],
+                    -glparamstate.lighting.lights[i].position[1],
+                    -glparamstate.lighting.lights[i].position[2],
+                };
+                normalize(normal);
+                GX_InitSpecularDirv(gx_specular, normal);
+                GX_InitLightShininess(gx_specular, glparamstate.lighting.matshininess);
+                GX_InitLightColor(gx_specular, spec_col);
+            }
         } else {
             // Point light
             if (gx_ambient) {
@@ -1820,7 +1882,13 @@ static LightMasks prepare_lighting()
             GX_LoadLightObj(gx_diffuse, 1 << gx_diffuse_idx);
             masks.diffuse_mask |= (1 << gx_diffuse_idx);
         }
+        if (gx_specular) {
+            GX_LoadLightObj(gx_specular, 1 << gx_specular_idx);
+            masks.specular_mask |= (1 << gx_specular_idx);
+        }
     }
+    debug("Ambient mask 0x%02x, diffuse 0x%02x, specular 0x%02x",
+          masks.ambient_mask, masks.diffuse_mask, masks.specular_mask);
     return masks;
 }
 
@@ -1912,7 +1980,8 @@ static void setup_render_stages(int texen)
         };
 
         // Color0 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is global ambient)
-        GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src, light_mask.ambient_mask, GX_DF_NONE, GX_AF_SPOT);
+        GX_SetChanCtrl(GX_COLOR0A0, GX_TRUE, GX_SRC_REG, vert_color_src,
+                       light_mask.ambient_mask | light_mask.specular_mask , GX_DF_NONE, GX_AF_SPEC);
         GX_SetChanAmbColor(GX_COLOR0A0, color_gamb);
 
         // Color1 channel: Multiplies the light raster result with the vertex color. Ambient is set to register (which is zero)
