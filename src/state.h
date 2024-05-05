@@ -72,6 +72,7 @@ typedef struct glparams_
     unsigned char zwrite, ztest, zfunc;
     unsigned char matrixmode;
     unsigned char frontcw, cullenabled;
+    uint16_t texture_env_mode;
     GLenum glcullmode;
     int glcurtex;
     GXColor clear_color;
