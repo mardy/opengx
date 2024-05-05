@@ -154,6 +154,16 @@ typedef struct glparams_
 
     gltexture_ textures[_MAX_GL_TEX];
 
+    struct CurrentCallList
+    {
+        int16_t index; /* -1 if not currently inside a glNewList */
+        char must_execute;
+        /* > 0 if we are executing a glCallList while compiling a display list.
+         * This is needed so that we don't write the executed list's command
+         * into the list being built. */
+        uint8_t execution_depth;
+    } current_call_list;
+
     GLenum error;
 } glparams_;
 
@@ -162,5 +172,7 @@ extern glparams_ _ogx_state;
 /* To avoid renaming all the variables */
 #define glparamstate _ogx_state
 #define texture_list _ogx_state.textures
+
+void _ogx_apply_state(void);
 
 #endif /* OGX_STATE_H */

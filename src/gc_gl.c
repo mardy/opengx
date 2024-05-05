@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 *****************************************************************************/
 
+#include "call_lists.h"
 #include "debug.h"
 #include "image_DXT.h"
 #include "opengx.h"
@@ -161,6 +162,7 @@ void ogx_initialize()
         _ogx_log_level = log_env[0] - '0';
     }
 
+    glparamstate.current_call_list.index = -1;
     GX_SetDispCopyGamma(GX_GM_1_0);
     int i;
     for (i = 0; i < _MAX_GL_TEX; i++) {
@@ -328,6 +330,8 @@ void ogx_initialize()
 
 void glEnable(GLenum cap)
 { // TODO
+    HANDLE_CALL_LIST(ENABLE, cap);
+
     switch (cap) {
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 1;
@@ -384,6 +388,8 @@ void glEnable(GLenum cap)
 
 void glDisable(GLenum cap)
 { // TODO
+    HANDLE_CALL_LIST(DISABLE, cap);
+
     switch (cap) {
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 0;
@@ -468,6 +474,8 @@ void glFogfv(GLenum pname, const GLfloat *params)
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)
 {
+    HANDLE_CALL_LIST(LIGHT, light, pname, &param);
+
     int lnum = light - GL_LIGHT0;
 
     switch (pname) {
@@ -494,6 +502,8 @@ void glLightf(GLenum light, GLenum pname, GLfloat param)
 
 void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
 {
+    HANDLE_CALL_LIST(LIGHT, light, pname, params);
+
     int lnum = light - GL_LIGHT0;
     switch (pname) {
     case GL_SPOT_DIRECTION:
@@ -551,6 +561,8 @@ void glMaterialf(GLenum face, GLenum pname, GLfloat param)
 
 void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 {
+    HANDLE_CALL_LIST(MATERIAL, face, pname, params);
+
     switch (pname) {
     case GL_DIFFUSE:
         floatcpy(glparamstate.lighting.matdiffuse, params, 4);
@@ -596,6 +608,8 @@ void glBindTexture(GLenum target, GLuint texture)
 {
     if (texture < 0 || texture >= _MAX_GL_TEX)
         return;
+
+    HANDLE_CALL_LIST(BIND_TEXTURE, target, texture);
 
     // If the texture has been initialized (data!=0) then load it to GX reg 0
     if (texture_list[texture].used) {
@@ -807,6 +821,8 @@ void glMatrixMode(GLenum mode)
 }
 void glPopMatrix(void)
 {
+    HANDLE_CALL_LIST(POP_MATRIX);
+
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy(glparamstate.projection_matrix, glparamstate.projection_stack[glparamstate.cur_proj_mat], sizeof(Mtx44));
@@ -821,6 +837,8 @@ void glPopMatrix(void)
 }
 void glPushMatrix(void)
 {
+    HANDLE_CALL_LIST(PUSH_MATRIX);
+
     switch (glparamstate.matrixmode) {
     case 0:
         glparamstate.cur_proj_mat++;
@@ -852,6 +870,8 @@ void glMultMatrixf(const GLfloat *m)
 {
     Mtx44 curr;
 
+    HANDLE_CALL_LIST(MULT_MATRIX, m);
+
     switch (glparamstate.matrixmode) {
     case 0:
         memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
@@ -869,6 +889,9 @@ void glMultMatrixf(const GLfloat *m)
 void glLoadIdentity()
 {
     float *mtrx;
+
+    HANDLE_CALL_LIST(LOAD_IDENTITY);
+
     switch (glparamstate.matrixmode) {
     case 0:
         mtrx = &glparamstate.projection_matrix[0][0];
@@ -901,6 +924,8 @@ void glLoadIdentity()
 }
 void glScalef(GLfloat x, GLfloat y, GLfloat z)
 {
+    HANDLE_CALL_LIST(SCALE, x, y, z);
+
     Mtx44 newmat;
     Mtx44 curr;
     newmat[0][0] = x;
@@ -937,6 +962,8 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
 }
 void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
+    HANDLE_CALL_LIST(TRANSLATE, x, y, z);
+
     Mtx44 newmat;
     Mtx44 curr;
     newmat[0][0] = 1.0f;
@@ -973,6 +1000,8 @@ void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 }
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
+    HANDLE_CALL_LIST(ROTATE, angle, x, y, z);
+
     angle *= (M_PI / 180.0f);
     float c = cosf(angle);
     float s = sinf(angle);
@@ -1161,6 +1190,8 @@ void glFinish()
 
 void glBlendFunc(GLenum sfactor, GLenum dfactor)
 {
+    HANDLE_CALL_LIST(BLEND_FUNC, sfactor, dfactor);
+
     switch (sfactor) {
     case GL_ZERO:
         glparamstate.srcblend = GX_BL_ZERO;
@@ -1255,6 +1286,8 @@ void glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
 {
+    HANDLE_CALL_LIST(TEX_ENV, target, pname, param);
+
     switch (pname) {
     case GL_TEXTURE_ENV_MODE:
         glparamstate.texture_env_mode = param;
@@ -2240,7 +2273,12 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     if (gxmode == 0xff)
         return;
 
-    _ogx_apply_state();
+    if (glparamstate.current_call_list.index >= 0 &&
+        glparamstate.current_call_list.execution_depth == 0) {
+        _ogx_call_list_append(COMMAND_GXLIST);
+    } else {
+        _ogx_apply_state();
+    }
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
@@ -2309,7 +2347,12 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     if (gxmode == 0xff)
         return;
 
-    _ogx_apply_state();
+    if (glparamstate.current_call_list.index >= 0 &&
+        glparamstate.current_call_list.execution_depth == 0) {
+        _ogx_call_list_append(COMMAND_GXLIST);
+    } else {
+        _ogx_apply_state();
+    }
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
