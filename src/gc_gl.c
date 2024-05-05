@@ -192,6 +192,7 @@ void ogx_initialize()
     glparamstate.cullenabled = 0;
     glparamstate.frontcw = 0; // By default front is CCW
     glDisable(GL_CULL_FACE);
+    glparamstate.texture_env_mode = GL_MODULATE;
 
     glparamstate.cur_proj_mat = -1;
     glparamstate.cur_modv_mat = -1;
@@ -1234,6 +1235,21 @@ void glLineWidth(GLfloat width)
     GX_SetLineWidth((unsigned int)(width * 16), GX_TO_ZERO);
 }
 
+void glTexEnvf(GLenum target, GLenum pname, GLfloat param)
+{
+    /* For the time being, all the parameters we support take integer values */
+    glTexEnvi(target, pname, param);
+}
+
+void glTexEnvi(GLenum target, GLenum pname, GLint param)
+{
+    switch (pname) {
+    case GL_TEXTURE_ENV_MODE:
+        glparamstate.texture_env_mode = param;
+        break;
+    }
+}
+
 // If bytes per pixel is decimal (0,5 0,25 ...) we encode the number
 // as the divisor in a negative way
 static int calc_memory(int w, int h, int bytespp)
@@ -1980,6 +1996,35 @@ static void setup_fog()
     GX_SetFog(mode, start, end, near, far, color);
 }
 
+static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
+                                u8 channel)
+{
+    switch (glparamstate.texture_env_mode) {
+    case GL_REPLACE:
+        // In data: a: Texture Color
+        GX_SetTevColorIn(stage, GX_CC_TEXC, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO);
+        GX_SetTevAlphaIn(stage, GX_CA_TEXA, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO);
+        break;
+    case GL_ADD:
+        // In data: d: Texture Color a: raster value, Operation: a+d
+        GX_SetTevColorIn(stage, raster_color, GX_CC_ZERO, GX_CC_ZERO, GX_CC_TEXC);
+        GX_SetTevAlphaIn(stage, raster_alpha, GX_CA_ZERO, GX_CA_ZERO, GX_CA_TEXA);
+        break;
+    case GL_MODULATE:
+    default:
+        // In data: c: Texture Color b: raster value, Operation: b*c
+        GX_SetTevColorIn(stage, GX_CC_ZERO, raster_color, GX_CC_TEXC, GX_CC_ZERO);
+        GX_SetTevAlphaIn(stage, GX_CA_ZERO, raster_alpha, GX_CA_TEXA, GX_CA_ZERO);
+        break;
+    }
+    GX_SetTevColorOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    GX_SetTevAlphaOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    GX_SetTevOrder(stage, GX_TEXCOORD0, GX_TEXMAP0, channel);
+    // Set up the data for the TEXCOORD0 (use a identity matrix, TODO: allow user texture matrices)
+    GX_SetNumTexGens(1);
+    GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+}
+
 static void setup_render_stages(int texen)
 {
     if (glparamstate.lighting.enabled) {
@@ -2067,19 +2112,8 @@ static void setup_render_stages(int texen)
         GX_SetTevOrder(GX_TEVSTAGE1, GX_TEXCOORDNULL, GX_TEXMAP_DISABLE, GX_COLOR1A1);
 
         if (texen) {
-            // STAGE 2: cprev * texc -> cprev
-            // In data: c: Texture Color b: Previous value (CPREV)
-            GX_SetTevColorIn(GX_TEVSTAGE2, GX_CC_ZERO, GX_CC_CPREV, GX_CC_TEXC, GX_CC_ZERO);
-            GX_SetTevAlphaIn(GX_TEVSTAGE2, GX_CA_ZERO, GX_CA_APREV, GX_CA_TEXA, GX_CA_ZERO);
-            // Operation: b*c
-            GX_SetTevColorOp(GX_TEVSTAGE2, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
-            GX_SetTevAlphaOp(GX_TEVSTAGE2, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
             // Do not select any raster value, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
-            GX_SetTevOrder(GX_TEVSTAGE2, GX_TEXCOORD0, GX_TEXMAP0, GX_COLORNULL);
-            // Set up the data for the TEXCOORD0 (use a identity matrix, TODO: allow user texture matrices)
-            GX_SetNumTexGens(1);
-            GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
-
+            setup_texture_stage(GX_TEVSTAGE2, GX_CC_CPREV, GX_CA_APREV, GX_COLORNULL);
             GX_SetNumTevStages(3);
         }
     } else {
@@ -2114,17 +2148,10 @@ static void setup_render_stages(int texen)
         GX_SetChanCtrl(GX_COLOR1A1, GX_DISABLE, GX_SRC_REG, GX_SRC_REG, 0, 0, 0);
 
         if (texen) {
-            // In data: b: Raster Color c: Texture Color
-            GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, vertex_color_register, GX_CC_TEXC, GX_CC_ZERO);
-            GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, vertex_alpha_register, GX_CA_TEXA, GX_CA_ZERO);
-            // Operation: Multiply b*c and the same goes for alphas
-            GX_SetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
-            GX_SetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
             // Select COLOR0A0 for the rasterizer, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
-            GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, rasterized_color);
-            // Set up the data for the TEXCOORD0 (use a identity matrix, TODO: allow user texture matrices)
-            GX_SetNumTexGens(1);
-            GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+            setup_texture_stage(GX_TEVSTAGE0,
+                                vertex_color_register, vertex_alpha_register,
+                                rasterized_color);
         } else {
             // In data: d: Raster Color
             GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, vertex_color_register);
