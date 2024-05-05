@@ -311,6 +311,8 @@ void ogx_initialize()
     glparamstate.fog.start = 0.0f;
     glparamstate.fog.end = 1.0f;
 
+    glparamstate.error = GL_NO_ERROR;
+
     // Setup data types for every possible attribute
 
     // Typical straight float
@@ -645,6 +647,8 @@ void glBegin(GLenum mode)
         if (buffer) {
             glparamstate.imm_mode.current_vertices = buffer;
             glparamstate.imm_mode.current_vertices_size = count;
+        } else {
+            set_error(GL_OUT_OF_MEMORY);
         }
     }
 }
@@ -742,7 +746,10 @@ void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
         int new_size = current_size < 256 ? (current_size * 2) : (current_size + 256);
         void *new_buffer = realloc(glparamstate.imm_mode.current_vertices,
                                    new_size * sizeof(VertexData));
-        if (!new_buffer) return;
+        if (!new_buffer) {
+            set_error(GL_OUT_OF_MEMORY);
+            return;
+        }
         glparamstate.imm_mode.current_vertices_size = new_size;
         glparamstate.imm_mode.current_vertices = new_buffer;
     }
@@ -1112,6 +1119,13 @@ void glDepthMask(GLboolean flag)
     else
         glparamstate.zwrite = GX_TRUE;
     glparamstate.dirty.bits.dirty_z = 1;
+}
+
+GLenum glGetError(void)
+{
+    GLenum error = glparamstate.error;
+    glparamstate.error = GL_NO_ERROR;
+    return error;
 }
 
 void glFlush() {} // All commands are sent immediately to draw, no queue, so pointless
@@ -2623,7 +2637,6 @@ void glGetFloatv(GLenum pname, GLfloat *params)
 
 // TODO STUB IMPLEMENTATION
 
-GLenum glGetError(void) { return 0; }
 const GLubyte *glGetString(GLenum name) { return gl_null_string; }
 void glPushAttrib(GLbitfield mask) {}
 void glPopAttrib(void) {}

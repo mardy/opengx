@@ -32,8 +32,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OGX_UTILS_H
 #define OGX_UTILS_H
 
-#include <GL/gl.h>
-#include <gccore.h>
+#include "state.h"
+
 #include <gctypes.h>
 #include <math.h>
 #include <string.h>
@@ -132,6 +132,14 @@ static inline GXColor gxcol_cpy_mulfv(GXColor color, float *components)
     color.b *= components[2];
     color.a *= components[3];
     return color;
+}
+
+static inline void set_error(GLenum code)
+{
+    /* OpenGL mandates that the oldest unretrieved error must be preserved. */
+    if (!glparamstate.error) {
+        glparamstate.error = code;
+    }
 }
 
 #endif /* OGX_UTILS_H */

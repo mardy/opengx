@@ -138,6 +138,8 @@ typedef struct glparams_
         float start;
         float end;
     } fog;
+
+    GLenum error;
 } glparams_;
 extern glparams_ glparamstate;
 
