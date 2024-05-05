@@ -48,136 +48,21 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "debug.h"
 #include "image_DXT.h"
 #include "opengx.h"
+#include "state.h"
 #include "utils.h"
 
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include <gccore.h>
 #include <gctypes.h>
 #include <malloc.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Constant definition. Here are the limits of this implementation.
-// Can be changed with care.
-
-#define _MAX_GL_TEX    192 // Maximum number of textures
-#define MAX_PROJ_STACK 4   // Proj. matrix stack depth
-#define MAX_MODV_STACK 16  // Modelview matrix stack depth
-#define NUM_VERTS_IM   64  // Maximum number of vertices that can be inside a glBegin/End
-#define MAX_LIGHTS     4   // Max num lights
-#define MAX_GX_LIGHTS  8
-
 #define ROUND_32B(x) (((x) + 31) & (~31))
 
-typedef float VertexData[12];
-
-typedef struct glparams_
-{
-    Mtx44 modelview_matrix;
-    Mtx44 projection_matrix;
-    Mtx44 modelview_stack[MAX_MODV_STACK];
-    Mtx44 projection_stack[MAX_PROJ_STACK];
-    int cur_modv_mat, cur_proj_mat;
-
-    unsigned char srcblend, dstblend;
-    unsigned char blendenabled;
-    unsigned char zwrite, ztest, zfunc;
-    unsigned char matrixmode;
-    unsigned char frontcw, cullenabled;
-    GLenum glcullmode;
-    int glcurtex;
-    GXColor clear_color;
-    float clearz;
-
-    void *index_array;
-    float *vertex_array, *texcoord_array, *normal_array, *color_array;
-    int vertex_stride, color_stride, index_stride, texcoord_stride, normal_stride;
-    char vertex_enabled, normal_enabled, texcoord_enabled, index_enabled, color_enabled;
-
-    char texture_enabled;
-
-    struct imm_mode
-    {
-        float current_color[4];
-        float current_texcoord[2];
-        float current_normal[3];
-        int current_numverts;
-        int current_vertices_size;
-        VertexData *current_vertices;
-        GLenum prim_type;
-    } imm_mode;
-
-    union dirty_union
-    {
-        struct dirty_struct
-        {
-            unsigned dirty_blend : 1;
-            unsigned dirty_z : 1;
-            unsigned dirty_matrices : 1;
-            unsigned dirty_lighting : 1;
-            unsigned dirty_material : 1;
-        } bits;
-        unsigned int all;
-    } dirty;
-
-    struct _lighting
-    {
-        struct alight
-        {
-            float position[4];
-            float direction[3];
-            float spot_direction[3];
-            float ambient_color[4];
-            float diffuse_color[4];
-            float specular_color[4];
-            float atten[3];
-            float spot_cutoff;
-            int spot_exponent;
-            char enabled;
-            int8_t gx_ambient;
-            int8_t gx_diffuse;
-            int8_t gx_specular;
-        } lights[MAX_LIGHTS];
-        GXLightObj lightobj[MAX_GX_LIGHTS];
-        float globalambient[4];
-        float matambient[4];
-        float matdiffuse[4];
-        float matemission[4];
-        float matspecular[4];
-        float matshininess;
-        char enabled;
-
-        char color_material_enabled;
-        uint16_t color_material_mode;
-
-        GXColor cached_ambient;
-    } lighting;
-
-    struct _fog
-    {
-        u8 enabled;
-        uint16_t mode;
-        float color[4];
-        float density;
-        float start;
-        float end;
-    } fog;
-} glparams_;
 glparams_ glparamstate;
 
-typedef struct gltexture_
-{
-    void *data;
-    unsigned short w, h;
-    GXTexObj texobj;
-    char used;
-    int bytespp;
-    char maxlevel, minlevel;
-    char onelevel;
-    unsigned char wraps, wrapt;
-} gltexture_;
 gltexture_ texture_list[_MAX_GL_TEX];
 
 typedef struct
