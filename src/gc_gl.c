@@ -708,6 +708,11 @@ void glColor4fv(const GLfloat *v)
     glparamstate.imm_mode.current_color[3] = clampf_01(v[3]);
 }
 
+void glTexCoord2d(GLdouble u, GLdouble v)
+{
+    glTexCoord2f(u, v);
+}
+
 void glTexCoord2f(GLfloat u, GLfloat v)
 {
     glparamstate.imm_mode.current_texcoord[0] = u;
@@ -726,6 +731,11 @@ void glNormal3fv(const GLfloat *v)
     glparamstate.imm_mode.current_normal[0] = v[0];
     glparamstate.imm_mode.current_normal[1] = v[1];
     glparamstate.imm_mode.current_normal[2] = v[2];
+}
+
+void glVertex2d(GLdouble x, GLdouble y)
+{
+    glVertex3f(x, y, 0.0f);
 }
 
 void glVertex2i(GLint x, GLint y)
@@ -2583,6 +2593,12 @@ static unsigned char gcgl_texwrap_conv(GLint param)
     default:
         return GX_REPEAT;
     };
+}
+
+void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
+{
+    /* For the time being, all the parameters we support take integer values */
+    glTexParameteri(target, pname, param);
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
