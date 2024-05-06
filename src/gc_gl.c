@@ -61,9 +61,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #define ROUND_32B(x) (((x) + 31) & (~31))
 
-glparams_ glparamstate;
-
-gltexture_ texture_list[_MAX_GL_TEX];
+glparams_ _ogx_state;
 
 typedef struct
 {
@@ -72,8 +70,8 @@ typedef struct
     uint8_t specular_mask;
 } LightMasks;
 
-const GLubyte gl_null_string[1] = { 0 };
-char log_level = 0;
+static const GLubyte gl_null_string[1] = { 0 };
+char _ogx_log_level = 0;
 
 static void swap_rgba(unsigned char *pixels, int num_pixels);
 static void swap_rgb565(unsigned short *pixels, int num_pixels);
@@ -159,7 +157,7 @@ void ogx_initialize()
 {
     const char *log_env = getenv("OPENGX_DEBUG");
     if (log_env) {
-        log_level = log_env[0] - '0';
+        _ogx_log_level = log_env[0] - '0';
     }
 
     GX_SetDispCopyGamma(GX_GM_1_0);

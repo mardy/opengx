@@ -34,15 +34,15 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdio.h>
 
-extern char log_level;
+extern char _ogx_log_level;
 
 #define warning(format, ...) \
-    if (log_level >= 1) { \
+    if (_ogx_log_level >= 1) { \
         fprintf(stderr, format "\n", ##__VA_ARGS__); \
     }
 
 #define debug(format, ...) \
-    if (log_level >= 2) { \
+    if (_ogx_log_level >= 2) { \
         fprintf(stderr, format "\n", ##__VA_ARGS__); \
     }
 
