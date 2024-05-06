@@ -81,8 +81,9 @@ static void conv_rgba_to_luminance_alpha(unsigned char *src, void *dst, const un
 static void scramble_2b(unsigned short *src, void *dst, const unsigned int width, const unsigned int height);
 static void scramble_4b(unsigned char *src, void *dst, const unsigned int width, const unsigned int height);
 
-void scale_internal(int components, int widthin, int heightin, const unsigned char *datain,
-                    int widthout, int heightout, unsigned char *dataout);
+static void scale_internal(int components, int widthin, int heightin,
+                           const unsigned char *datain,
+                           int widthout, int heightout, unsigned char *dataout);
 
 static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
                                         int count, bool loop);
@@ -1456,7 +1457,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         unsigned char *dst_addr = currtex->data;
         dst_addr += offset;
 
-        convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr, width, height, needswap);
+        _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
+                                       width, height, needswap);
 
         DCFlushRange(dst_addr, calc_memory(width, height, bytesperpixelinternal));
     }
@@ -2759,8 +2761,9 @@ static void swap_rgb565(unsigned short *pixels, int num_pixels)
 
 //// Image scaling for arbitrary size taken from Mesa 3D and adapted by davidgf ////
 
-void scale_internal(int components, int widthin, int heightin, const unsigned char *datain,
-                    int widthout, int heightout, unsigned char *dataout)
+static void scale_internal(int components, int widthin, int heightin,
+                           const unsigned char *datain,
+                           int widthout, int heightout, unsigned char *dataout)
 {
     float x, lowx, highx, convx, halfconvx;
     float y, lowy, highy, convy, halfconvy;
