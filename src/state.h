@@ -47,6 +47,18 @@ POSSIBILITY OF SUCH DAMAGE.
 
 typedef float VertexData[12];
 
+typedef struct gltexture_
+{
+    void *data;
+    unsigned short w, h;
+    GXTexObj texobj;
+    char used;
+    int bytespp;
+    char maxlevel, minlevel;
+    char onelevel;
+    unsigned char wraps, wrapt;
+} gltexture_;
+
 typedef struct glparams_
 {
     Mtx44 modelview_matrix;
@@ -139,21 +151,15 @@ typedef struct glparams_
         float end;
     } fog;
 
+    gltexture_ textures[_MAX_GL_TEX];
+
     GLenum error;
 } glparams_;
-extern glparams_ glparamstate;
 
-typedef struct gltexture_
-{
-    void *data;
-    unsigned short w, h;
-    GXTexObj texobj;
-    char used;
-    int bytespp;
-    char maxlevel, minlevel;
-    char onelevel;
-    unsigned char wraps, wrapt;
-} gltexture_;
-extern gltexture_ texture_list[_MAX_GL_TEX];
+extern glparams_ _ogx_state;
+
+/* To avoid renaming all the variables */
+#define glparamstate _ogx_state
+#define texture_list _ogx_state.textures
 
 #endif /* OGX_STATE_H */
