@@ -2465,6 +2465,11 @@ void gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFa
     glMultMatrixf((float *)m);
 }
 
+void gluOrtho2D(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top)
+{
+    glOrtho(left, right, bottom, top, -1, 1);
+}
+
 void gluLookAt(GLdouble eyex, GLdouble eyey, GLdouble eyez, GLdouble centerx,
                GLdouble centery, GLdouble centerz, GLdouble upx, GLdouble upy, GLdouble upz)
 {
