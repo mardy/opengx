@@ -544,6 +544,11 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
     glparamstate.dirty.bits.dirty_material = 1;
 };
 
+void glMaterialf(GLenum face, GLenum pname, GLfloat param)
+{
+    glMaterialfv(face, pname, &param);
+}
+
 void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 {
     switch (pname) {
