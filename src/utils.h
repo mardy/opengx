@@ -142,4 +142,53 @@ static inline void set_error(GLenum code)
     }
 }
 
+typedef void (*ForeachCb)(GLuint value);
+
+
+static inline void foreach_u8(GLsizei n, const GLbyte *data, ForeachCb cb)
+{
+    for (int i = 0; i < n; i++)
+        cb(data[i]);
+}
+
+static inline void foreach_u16(GLsizei n, const GLshort *data, ForeachCb cb)
+{
+    for (int i = 0; i < n; i++)
+        cb(data[i]);
+}
+
+static inline void foreach_u32(GLsizei n, const GLuint *data, ForeachCb cb)
+{
+    for (int i = 0; i < n; i++)
+        cb(data[i]);
+}
+
+static inline void foreach_float(GLsizei n, const GLfloat *data, ForeachCb cb)
+{
+    for (int i = 0; i < n; i++)
+        cb((GLuint)data[i]);
+}
+
+static inline void foreach(GLsizei n, GLenum type, const GLvoid *data,
+                           ForeachCb cb)
+{
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        foreach_u8(n, data, cb);
+        break;
+    case GL_SHORT:
+    case GL_UNSIGNED_SHORT:
+        foreach_u16(n, data, cb);
+        break;
+    case GL_INT:
+    case GL_UNSIGNED_INT:
+        foreach_u32(n, data, cb);
+        break;
+    case GL_FLOAT:
+        foreach_float(n, data, cb);
+        break;
+    }
+}
+
 #endif /* OGX_UTILS_H */
