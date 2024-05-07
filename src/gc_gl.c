@@ -2168,12 +2168,42 @@ static void setup_render_stages(int texen)
     setup_fog();
 }
 
+void _ogx_apply_state()
+{
+    int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
+    setup_render_stages(texen);
+
+    // Set up the OGL state to GX state
+    if (glparamstate.dirty.bits.dirty_z)
+        GX_SetZMode(glparamstate.ztest, glparamstate.zfunc, glparamstate.zwrite & glparamstate.ztest);
+
+    if (glparamstate.dirty.bits.dirty_blend) {
+        if (glparamstate.blendenabled)
+            GX_SetBlendMode(GX_BM_BLEND, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
+        else
+            GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
+    }
+
+    // Matrix stuff
+    if (glparamstate.dirty.bits.dirty_matrices) {
+        MODELVIEW_UPDATE
+        PROJECTION_UPDATE
+    }
+    if (glparamstate.dirty.bits.dirty_matrices | glparamstate.dirty.bits.dirty_lighting) {
+        NORMAL_UPDATE
+    }
+
+    // All the state has been transferred, no need to update it again next time
+    glparamstate.dirty.all = 0;
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
-
     unsigned char gxmode = draw_mode(mode);
     if (gxmode == 0xff)
         return;
+
+    _ogx_apply_state();
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
@@ -2196,8 +2226,6 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     ptr_color += (glparamstate.color_stride * first);
     ptr_normal += (glparamstate.normal_stride * first);
 
-    setup_render_stages(texen);
-
     // Not using indices
     GX_ClearVtxDesc();
     if (glparamstate.vertex_enabled)
@@ -2220,26 +2248,6 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();
-
-    // Set up the OGL state to GX state
-    if (glparamstate.dirty.bits.dirty_z)
-        GX_SetZMode(glparamstate.ztest, glparamstate.zfunc, glparamstate.zwrite & glparamstate.ztest);
-
-    if (glparamstate.dirty.bits.dirty_blend) {
-        if (glparamstate.blendenabled)
-            GX_SetBlendMode(GX_BM_BLEND, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
-        else
-            GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
-    }
-
-    // Matrix stuff
-    if (glparamstate.dirty.bits.dirty_matrices) {
-        MODELVIEW_UPDATE
-        PROJECTION_UPDATE
-    }
-    if (glparamstate.dirty.bits.dirty_matrices | glparamstate.dirty.bits.dirty_lighting) {
-        NORMAL_UPDATE
-    }
 
     bool loop = (mode == GL_LINE_LOOP);
     GX_Begin(gxmode, GX_VTXFMT0, count + loop);
@@ -2255,9 +2263,6 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
                             count, glparamstate.normal_enabled, color_provide, texen, loop);
     }
     GX_End();
-
-    // All the state has been transferred, no need to update it again next time
-    glparamstate.dirty.all = 0;
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
@@ -2266,6 +2271,8 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     unsigned char gxmode = draw_mode(mode);
     if (gxmode == 0xff)
         return;
+
+    _ogx_apply_state();
 
     int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
@@ -2279,8 +2286,6 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     // Create data pointers
     unsigned short *ind = (unsigned short *)indices;
-
-    setup_render_stages(texen);
 
     // Not using indices
     GX_ClearVtxDesc();
@@ -2304,25 +2309,6 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();
-
-    // Set up the OGL state to GX state
-    if (glparamstate.dirty.bits.dirty_z)
-        GX_SetZMode(glparamstate.ztest, glparamstate.zfunc, glparamstate.zwrite & glparamstate.ztest);
-
-    if (glparamstate.dirty.bits.dirty_blend) {
-        if (glparamstate.blendenabled)
-            GX_SetBlendMode(GX_BM_BLEND, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
-        else
-            GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
-    }
-
-    if (glparamstate.dirty.bits.dirty_matrices) {
-        MODELVIEW_UPDATE
-        PROJECTION_UPDATE
-    }
-    if (glparamstate.dirty.bits.dirty_matrices | glparamstate.dirty.bits.dirty_lighting) {
-        NORMAL_UPDATE
-    }
 
     bool loop = (mode == GL_LINE_LOOP);
     GX_Begin(gxmode, GX_VTXFMT0, count + loop);
@@ -2354,9 +2340,6 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         }
     }
     GX_End();
-
-    // All the state has been transferred, no need to update it again next time
-    glparamstate.dirty.all = 0;
 }
 
 static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
