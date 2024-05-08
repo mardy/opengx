@@ -1481,12 +1481,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         }
 
         if (format == GL_RGB) {
-            _ogx_conv_rgb_to_rgb565((unsigned char *)data, tempbuf, width, height);
+            _ogx_conv_rgb_to_rgb565(data, type, tempbuf, width, height);
         } else if (format == GL_RGBA) {
             if (internalFormat == GL_RGB) {
-                _ogx_conv_rgba_to_rgb565((unsigned char *)data, tempbuf, width, height);
+                _ogx_conv_rgba_to_rgb565(data, type, tempbuf, width, height);
             } else if (internalFormat == GL_RGBA) {
-                memcpy(tempbuf, (unsigned char *)data, width * height * 4);
+                _ogx_conv_rgba_to_rgba32(data, type, tempbuf, width, height);
             } else if (internalFormat == GL_LUMINANCE_ALPHA) {
                 _ogx_conv_rgba_to_luminance_alpha((unsigned char *)data, tempbuf, width, height);
             }
@@ -1494,7 +1494,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
             if (internalFormat == GL_RGB) {
                 // TODO
             } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-                memcpy(tempbuf, (unsigned char *)data, width * height * 2);
+                _ogx_conv_luminance_alpha_to_ia8(data, type, tempbuf, width, height);
             }
         }
 
