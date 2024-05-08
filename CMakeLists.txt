@@ -15,6 +15,8 @@ add_library(${TARGET} STATIC
     src/image_DXT.c
     src/image_DXT.h
     src/opengx.h
+    src/pixels.c
+    src/pixels.h
     src/state.h
     src/utils.h
 )
