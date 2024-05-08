@@ -1509,6 +1509,9 @@ void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha
 void glDisableClientState(GLenum cap)
 {
     switch (cap) {
+    case GL_COLOR_ARRAY:
+        glparamstate.color_enabled = 0;
+        break;
     case GL_INDEX_ARRAY:
         glparamstate.index_enabled = 0;
         break;
@@ -1524,13 +1527,15 @@ void glDisableClientState(GLenum cap)
     case GL_EDGE_FLAG_ARRAY:
     case GL_FOG_COORD_ARRAY:
     case GL_SECONDARY_COLOR_ARRAY:
-    case GL_COLOR_ARRAY:
         return;
     }
 }
 void glEnableClientState(GLenum cap)
 {
     switch (cap) {
+    case GL_COLOR_ARRAY:
+        glparamstate.color_enabled = 1;
+        break;
     case GL_INDEX_ARRAY:
         glparamstate.index_enabled = 1;
         break;
@@ -1546,7 +1551,6 @@ void glEnableClientState(GLenum cap)
     case GL_EDGE_FLAG_ARRAY:
     case GL_FOG_COORD_ARRAY:
     case GL_SECONDARY_COLOR_ARRAY:
-    case GL_COLOR_ARRAY:
         return;
     }
 }
@@ -1565,6 +1569,16 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
     if (stride == 0)
         glparamstate.normal_stride = 3;
 }
+
+void glColorPointer(GLint size, GLenum type,
+                    GLsizei stride, const GLvoid *pointer)
+{
+    glparamstate.color_array = (float *)pointer;
+    glparamstate.color_stride = stride;
+    if (stride == 0)
+        glparamstate.color_stride = size;
+}
+
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     glparamstate.texcoord_array = (float *)pointer;
