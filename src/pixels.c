@@ -32,7 +32,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "pixels.h"
 
+#include "debug.h"
 #include <math.h>
+#include <string.h>
+
+#define FLOAT_TO_BYTE(f) ((GLbyte)(f * 255.0) & 0xff)
 
 void _ogx_swap_rgba(unsigned char *pixels, int num_pixels)
 {
@@ -55,11 +59,8 @@ void _ogx_swap_rgb565(unsigned short *pixels, int num_pixels)
     }
 }
 
-// Discards alpha and fits the texture in 16 bits
-void _ogx_conv_rgba_to_rgb565(unsigned char *src, void *dst,
-                              const unsigned int width, const unsigned int height)
+static void conv_rgba32_to_rgb565(const int8_t *src, void *dst, int numpixels)
 {
-    int numpixels = width * height;
     unsigned short *out = dst;
     while (numpixels--) {
         *out++ = ((src[0] & 0xF8) << 8) | ((src[1] & 0xFC) << 3) | ((src[2] >> 3));
@@ -67,15 +68,125 @@ void _ogx_conv_rgba_to_rgb565(unsigned char *src, void *dst,
     }
 }
 
-// Fits the texture in 16 bits
-void _ogx_conv_rgb_to_rgb565(unsigned char *src, void *dst,
-                             const unsigned int width, const unsigned int height)
+static void conv_rgbaf_to_rgb565(const float *src, void *dst, int numpixels)
+{
+    unsigned short *out = dst;
+    while (numpixels--) {
+        *out++ = ((FLOAT_TO_BYTE(src[0]) & 0xF8) << 8) |
+            ((FLOAT_TO_BYTE(src[1]) & 0xFC) << 3) |
+            ((FLOAT_TO_BYTE(src[2]) >> 3));
+        src += 4;
+    }
+}
+
+// Discards alpha and fits the texture in 16 bits
+void _ogx_conv_rgba_to_rgb565(const void *data, GLenum type,
+                              void *dst, int width, int height)
 {
     int numpixels = width * height;
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        conv_rgba32_to_rgb565(data, dst, numpixels);
+        break;
+    case GL_FLOAT:
+        conv_rgbaf_to_rgb565(data, dst, numpixels);
+        break;
+    default:
+        warning("Unsupported texture format %d", type);
+    }
+}
+
+static void conv_rgb24_to_rgb565(const uint8_t *src, void *dst, int numpixels)
+{
     unsigned short *out = dst;
     while (numpixels--) {
         *out++ = ((src[0] & 0xF8) << 8) | ((src[1] & 0xFC) << 3) | ((src[2] >> 3));
         src += 3;
+    }
+}
+
+static void conv_rgbf_to_rgb565(const float *src, void *dst, int numpixels)
+{
+    unsigned short *out = dst;
+    while (numpixels--) {
+        *out++ = ((FLOAT_TO_BYTE(src[0]) & 0xF8) << 8) |
+            ((FLOAT_TO_BYTE(src[1]) & 0xFC) << 3) |
+            ((FLOAT_TO_BYTE(src[2]) >> 3));
+        src += 3;
+    }
+}
+
+// Fits the texture in 16 bits
+void _ogx_conv_rgb_to_rgb565(const void *data, GLenum type,
+                             void *dst, int width, int height)
+{
+    int numpixels = width * height;
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        conv_rgb24_to_rgb565(data, dst, numpixels);
+        break;
+    case GL_FLOAT:
+        conv_rgbf_to_rgb565(data, dst, numpixels);
+        break;
+    default:
+        warning("Unsupported texture format %d", type);
+    }
+}
+
+static void conv_rgbaf_to_rgba32(const float *src, void *dst, int numpixels)
+{
+    uint32_t *out = dst;
+    while (numpixels--) {
+        *out++ = (FLOAT_TO_BYTE(src[0]) << 24) |
+            (FLOAT_TO_BYTE(src[1]) << 16) |
+            (FLOAT_TO_BYTE(src[2]) << 8) |
+            FLOAT_TO_BYTE(src[3]);
+        src += 4;
+    }
+}
+
+void _ogx_conv_rgba_to_rgba32(const void *data, GLenum type,
+                              void *dest, int width, int height)
+{
+    int numpixels = width * height;
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        memcpy(dest, data, numpixels * 4);
+        break;
+    case GL_FLOAT:
+        conv_rgbaf_to_rgba32(data, dest, numpixels);
+        break;
+    default:
+        warning("Unsupported texture format %d", type);
+    }
+}
+
+static void conv_laf_to_ia8(const float *src, void *dst, int numpixels)
+{
+    uint16_t *out = dst;
+    while (numpixels--) {
+        *out++ = (FLOAT_TO_BYTE(src[1]) << 8) | FLOAT_TO_BYTE(src[0]);
+        src += 2;
+    }
+}
+
+void _ogx_conv_luminance_alpha_to_ia8(const void *data, GLenum type,
+                                      void *dest, int width, int height)
+{
+    int numpixels = width * height;
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        memcpy(dest, data, numpixels * 2);
+        break;
+    case GL_FLOAT:
+        conv_laf_to_ia8(data, dest, numpixels);
+        break;
+    default:
+        warning("Unsupported texture format %d", type);
     }
 }
 
