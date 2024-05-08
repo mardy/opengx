@@ -2642,9 +2642,12 @@ void glGetFloatv(GLenum pname, GLfloat *params)
 // TODO STUB IMPLEMENTATION
 
 const GLubyte *glGetString(GLenum name) { return gl_null_string; }
+void glLightModelf(GLenum pname, GLfloat param) {}
 void glPushAttrib(GLbitfield mask) {}
 void glPopAttrib(void) {}
+void glPolygonMode(GLenum face, GLenum mode) {}
 void glReadBuffer(GLenum mode) {}
+void glPixelStorei(GLenum pname, GLint param) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
 void glAlphaFunc(GLenum func, GLclampf ref) {} // We need a TEVSTAGE for comparing and discarding pixels by alpha value
 
