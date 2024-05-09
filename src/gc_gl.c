@@ -2278,8 +2278,7 @@ static void setup_render_stages(int texen)
 
 void _ogx_apply_state()
 {
-    int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
-    setup_render_stages(texen);
+    setup_render_stages(glparamstate.texture_enabled);
 
     // Set up the OGL state to GX state
     if (glparamstate.dirty.bits.dirty_z)
@@ -2311,14 +2310,18 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     if (gxmode == 0xff)
         return;
 
+    int texen = glparamstate.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
     } else {
         _ogx_apply_state();
+        /* When not building a display list, we can optimize the drawing by
+         * avoiding passing texture coordinates if texturing is not enabled.
+         */
+        texen = texen && glparamstate.texture_enabled;
     }
 
-    int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
     if (glparamstate.color_enabled &&
         (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
@@ -2385,14 +2388,18 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     if (gxmode == 0xff)
         return;
 
+    int texen = glparamstate.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
     } else {
         _ogx_apply_state();
+        /* When not building a display list, we can optimize the drawing by
+         * avoiding passing texture coordinates if texturing is not enabled.
+         */
+        texen = texen && glparamstate.texture_enabled;
     }
 
-    int texen = glparamstate.texcoord_enabled & glparamstate.texture_enabled;
     int color_provide = 0;
     if (glparamstate.color_enabled &&
         (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
