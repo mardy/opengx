@@ -81,7 +81,14 @@ typedef struct glparams_
     void *index_array;
     float *vertex_array, *texcoord_array, *normal_array, *color_array;
     int vertex_stride, color_stride, index_stride, texcoord_stride, normal_stride;
-    char vertex_enabled, normal_enabled, texcoord_enabled, index_enabled, color_enabled;
+    struct client_state
+    {
+        unsigned vertex_enabled : 1;
+        unsigned normal_enabled : 1;
+        unsigned texcoord_enabled : 1;
+        unsigned index_enabled : 1;
+        unsigned color_enabled : 1;
+    } cs;
 
     char texture_enabled;
 

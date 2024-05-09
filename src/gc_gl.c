@@ -217,11 +217,11 @@ void ogx_initialize()
     glparamstate.imm_mode.current_normal[2] = 1.0f;
     glparamstate.imm_mode.current_numverts = 0;
 
-    glparamstate.vertex_enabled = 0; // DisableClientState on everything
-    glparamstate.normal_enabled = 0;
-    glparamstate.texcoord_enabled = 0;
-    glparamstate.index_enabled = 0;
-    glparamstate.color_enabled = 0;
+    glparamstate.cs.vertex_enabled = 0; // DisableClientState on everything
+    glparamstate.cs.normal_enabled = 0;
+    glparamstate.cs.texcoord_enabled = 0;
+    glparamstate.cs.index_enabled = 0;
+    glparamstate.cs.color_enabled = 0;
 
     glparamstate.texture_enabled = 0;
 
@@ -685,8 +685,10 @@ void glBegin(GLenum mode)
 
 void glEnd()
 {
+    struct client_state cs_backup = glparamstate.cs;
     glInterleavedArrays(GL_T2F_C4F_N3F_V3F, 0, glparamstate.imm_mode.current_vertices);
     glDrawArrays(glparamstate.imm_mode.prim_type, 0, glparamstate.imm_mode.current_numverts);
+    glparamstate.cs = cs_backup;
 }
 
 void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
@@ -1620,19 +1622,19 @@ void glDisableClientState(GLenum cap)
 {
     switch (cap) {
     case GL_COLOR_ARRAY:
-        glparamstate.color_enabled = 0;
+        glparamstate.cs.color_enabled = 0;
         break;
     case GL_INDEX_ARRAY:
-        glparamstate.index_enabled = 0;
+        glparamstate.cs.index_enabled = 0;
         break;
     case GL_NORMAL_ARRAY:
-        glparamstate.normal_enabled = 0;
+        glparamstate.cs.normal_enabled = 0;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        glparamstate.texcoord_enabled = 0;
+        glparamstate.cs.texcoord_enabled = 0;
         break;
     case GL_VERTEX_ARRAY:
-        glparamstate.vertex_enabled = 0;
+        glparamstate.cs.vertex_enabled = 0;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_FOG_COORD_ARRAY:
@@ -1644,19 +1646,19 @@ void glEnableClientState(GLenum cap)
 {
     switch (cap) {
     case GL_COLOR_ARRAY:
-        glparamstate.color_enabled = 1;
+        glparamstate.cs.color_enabled = 1;
         break;
     case GL_INDEX_ARRAY:
-        glparamstate.index_enabled = 1;
+        glparamstate.cs.index_enabled = 1;
         break;
     case GL_NORMAL_ARRAY:
-        glparamstate.normal_enabled = 1;
+        glparamstate.cs.normal_enabled = 1;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        glparamstate.texcoord_enabled = 1;
+        glparamstate.cs.texcoord_enabled = 1;
         break;
     case GL_VERTEX_ARRAY:
-        glparamstate.vertex_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_FOG_COORD_ARRAY:
@@ -1704,38 +1706,38 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
     glparamstate.texcoord_array = (float *)pointer;
     glparamstate.color_array = (float *)pointer;
 
-    glparamstate.index_enabled = 0;
-    glparamstate.normal_enabled = 0;
-    glparamstate.texcoord_enabled = 0;
-    glparamstate.vertex_enabled = 0;
-    glparamstate.color_enabled = 0;
+    glparamstate.cs.index_enabled = 0;
+    glparamstate.cs.normal_enabled = 0;
+    glparamstate.cs.texcoord_enabled = 0;
+    glparamstate.cs.vertex_enabled = 0;
+    glparamstate.cs.color_enabled = 0;
 
     int cstride = 0;
     switch (format) {
     case GL_V2F:
-        glparamstate.vertex_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
         cstride = 2;
         break;
     case GL_V3F:
-        glparamstate.vertex_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
         cstride = 3;
         break;
     case GL_N3F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.normal_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.normal_enabled = 1;
         cstride = 6;
         glparamstate.vertex_array += 3;
         break;
     case GL_T2F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.texcoord_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.texcoord_enabled = 1;
         cstride = 5;
         glparamstate.vertex_array += 2;
         break;
     case GL_T2F_N3F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.normal_enabled = 1;
-        glparamstate.texcoord_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.normal_enabled = 1;
+        glparamstate.cs.texcoord_enabled = 1;
         cstride = 8;
 
         glparamstate.vertex_array += 5;
@@ -1743,35 +1745,35 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         break;
 
     case GL_C4F_N3F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.normal_enabled = 1;
-        glparamstate.color_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.normal_enabled = 1;
+        glparamstate.cs.color_enabled = 1;
         cstride = 10;
 
         glparamstate.vertex_array += 7;
         glparamstate.normal_array += 4;
         break;
     case GL_C3F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.color_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.color_enabled = 1;
         cstride = 6;
 
         glparamstate.vertex_array += 3;
         break;
     case GL_T2F_C3F_V3F:
-        glparamstate.vertex_enabled = 1;
-        glparamstate.color_enabled = 1;
-        glparamstate.texcoord_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.color_enabled = 1;
+        glparamstate.cs.texcoord_enabled = 1;
         cstride = 8;
 
         glparamstate.vertex_array += 5;
         glparamstate.color_array += 2;
         break;
     case GL_T2F_C4F_N3F_V3F: // Complete type
-        glparamstate.vertex_enabled = 1;
-        glparamstate.normal_enabled = 1;
-        glparamstate.color_enabled = 1;
-        glparamstate.texcoord_enabled = 1;
+        glparamstate.cs.vertex_enabled = 1;
+        glparamstate.cs.normal_enabled = 1;
+        glparamstate.cs.color_enabled = 1;
+        glparamstate.cs.texcoord_enabled = 1;
         cstride = 12;
 
         glparamstate.vertex_array += 9;
@@ -2146,7 +2148,7 @@ static void setup_render_stages(int texen)
         GX_SetNumTexGens(0);
 
         unsigned char vert_color_src = GX_SRC_VTX;
-        if (!glparamstate.color_enabled || !glparamstate.lighting.color_material_enabled) {
+        if (!glparamstate.cs.color_enabled || !glparamstate.lighting.color_material_enabled) {
             vert_color_src = GX_SRC_REG;
             GXColor acol, dcol;
             bool ambient_set = false, diffuse_set = false;
@@ -2234,7 +2236,7 @@ static void setup_render_stages(int texen)
         unsigned char vertex_color_register = GX_CC_RASC;
         unsigned char vertex_alpha_register = GX_CA_RASA;
         unsigned char rasterized_color = GX_COLOR0A0;
-        if (!glparamstate.color_enabled) { // No need for vertex color raster, it's constant
+        if (!glparamstate.cs.color_enabled) { // No need for vertex color raster, it's constant
             // Use constant color
             vertex_color_register = GX_CC_KONST;
             vertex_alpha_register = GX_CA_KONST;
@@ -2310,7 +2312,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     if (gxmode == 0xff)
         return;
 
-    int texen = glparamstate.texcoord_enabled;
+    int texen = glparamstate.cs.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
@@ -2323,7 +2325,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     }
 
     int color_provide = 0;
-    if (glparamstate.color_enabled &&
+    if (glparamstate.cs.color_enabled &&
         (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
         if (glparamstate.lighting.enabled)
             color_provide = 2; // Lighting requires two color channels
@@ -2344,9 +2346,9 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     // Not using indices
     GX_ClearVtxDesc();
-    if (glparamstate.vertex_enabled)
+    if (glparamstate.cs.vertex_enabled)
         GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    if (glparamstate.normal_enabled)
+    if (glparamstate.cs.normal_enabled)
         GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
     if (color_provide)
         GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
@@ -2368,7 +2370,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     bool loop = (mode == GL_LINE_LOOP);
     GX_Begin(gxmode, GX_VTXFMT0, count + loop);
 
-    if (glparamstate.normal_enabled && !glparamstate.color_enabled) {
+    if (glparamstate.cs.normal_enabled && !glparamstate.cs.color_enabled) {
         if (texen) {
             draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count, loop);
         } else {
@@ -2376,7 +2378,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         }
     } else {
         draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
-                            count, glparamstate.normal_enabled, color_provide, texen, loop);
+                            count, glparamstate.cs.normal_enabled, color_provide, texen, loop);
     }
     GX_End();
 }
@@ -2388,7 +2390,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     if (gxmode == 0xff)
         return;
 
-    int texen = glparamstate.texcoord_enabled;
+    int texen = glparamstate.cs.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
@@ -2401,7 +2403,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     }
 
     int color_provide = 0;
-    if (glparamstate.color_enabled &&
+    if (glparamstate.cs.color_enabled &&
         (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
         if (glparamstate.lighting.enabled)
             color_provide = 2; // Lighting requires two color channels
@@ -2414,9 +2416,9 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     // Not using indices
     GX_ClearVtxDesc();
-    if (glparamstate.vertex_enabled)
+    if (glparamstate.cs.vertex_enabled)
         GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    if (glparamstate.normal_enabled)
+    if (glparamstate.cs.normal_enabled)
         GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
     if (color_provide)
         GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
@@ -2447,7 +2449,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
         GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
 
-        if (glparamstate.normal_enabled) {
+        if (glparamstate.cs.normal_enabled) {
             GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
         }
 
