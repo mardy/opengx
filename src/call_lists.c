@@ -41,7 +41,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 
 #define MAX_COMMANDS_PER_BUFFER 2
-#define MAX_CALL_LISTS 256
+#define MAX_CALL_LISTS 1536
 /* The glut teapot can take more than 300KB, for reference */
 #define MAX_GXLIST_SIZE (1024 * 1024)
 #define CALL_LIST_START_ID 1
