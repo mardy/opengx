@@ -2362,9 +2362,6 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
             color_provide = 1;
     }
 
-    // Create data pointers
-    unsigned short *ind = (unsigned short *)indices;
-
     // Not using indices
     GX_ClearVtxDesc();
     if (glparamstate.cs.vertex_enabled)
@@ -2392,7 +2389,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     GX_Begin(gxmode, GX_VTXFMT0, count + loop);
     int i;
     for (i = 0; i < count + loop; i++) {
-        int index = ind[i % count];
+        int index = read_index(indices, type, i % count);
         float *ptr_pos = glparamstate.vertex_array + glparamstate.vertex_stride * index;
         float *ptr_texc = glparamstate.texcoord_array + glparamstate.texcoord_stride * index;
         float *ptr_color = glparamstate.color_array + glparamstate.color_stride * index;

@@ -191,4 +191,16 @@ static inline void foreach(GLsizei n, GLenum type, const GLvoid *data,
     }
 }
 
+static inline int read_index(const GLvoid *indices, GLenum type, int i)
+{
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        return ((uint8_t*)indices)[i];
+    case GL_UNSIGNED_SHORT:
+        return ((uint16_t*)indices)[i];
+    case GL_UNSIGNED_INT:
+        return ((uint32_t*)indices)[i];
+    }
+}
+
 #endif /* OGX_UTILS_H */
