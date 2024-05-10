@@ -2638,16 +2638,18 @@ GLint gluBuild2DMipmaps(GLenum target, GLint internalFormat, GLsizei width, GLsi
         return -1;
     }
     int w = width, h = height;
+    glTexImage2D(target, level, internalFormat, w, h, 0, format, type, data);
 
     while (w > 1 && h > 1) {
-        gluScaleImage(format, width, height, type, data, w, h, type, buf);
-        glTexImage2D(target, level, internalFormat, w, h, 0, format, type, buf);
-
         if (w > 1)
             w /= 2;
         if (h > 1)
             h /= 2;
         level++;
+        int rc = gluScaleImage(format, width, height, type, data, w, h, type, buf);
+        if (rc == 0) {
+            glTexImage2D(target, level, internalFormat, w, h, 0, format, type, buf);
+        }
     }
     free(buf);
     return 0;
@@ -2656,6 +2658,8 @@ GLint gluBuild2DMipmaps(GLenum target, GLint internalFormat, GLsizei width, GLsi
 GLint gluScaleImage(GLenum format, GLsizei wIn, GLsizei hIn, GLenum typeIn,
                     const void *dataIn, GLsizei wOut, GLsizei hOut, GLenum typeOut, GLvoid *dataOut)
 {
+    if (typeOut == GL_FLOAT) return -1;
+
     switch (format) {
     case GL_RGB:
     case GL_BGR:
