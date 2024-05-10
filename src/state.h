@@ -38,7 +38,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // Constant definition. Here are the limits of this implementation.
 // Can be changed with care.
 
-#define _MAX_GL_TEX    192 // Maximum number of textures
+#define _MAX_GL_TEX    2048 // Maximum number of textures
 #define MAX_PROJ_STACK 4   // Proj. matrix stack depth
 #define MAX_MODV_STACK 16  // Modelview matrix stack depth
 #define NUM_VERTS_IM   64  // Maximum number of vertices that can be inside a glBegin/End
