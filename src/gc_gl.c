@@ -201,6 +201,7 @@ void ogx_initialize()
     glparamstate.imm_mode.current_normal[1] = 0;
     glparamstate.imm_mode.current_normal[2] = 1.0f;
     glparamstate.imm_mode.current_numverts = 0;
+    glparamstate.imm_mode.in_gl_begin = 0;
 
     glparamstate.cs.vertex_enabled = 0; // DisableClientState on everything
     glparamstate.cs.normal_enabled = 0;
@@ -654,6 +655,8 @@ void glBegin(GLenum mode)
     // Just discard all the data!
     glparamstate.imm_mode.current_numverts = 0;
     glparamstate.imm_mode.prim_type = mode;
+    glparamstate.imm_mode.in_gl_begin = 1;
+    glparamstate.imm_mode.has_color = 0;
     if (!glparamstate.imm_mode.current_vertices) {
         int count = 64;
         warning("First malloc %d", errno);
@@ -671,9 +674,22 @@ void glBegin(GLenum mode)
 void glEnd()
 {
     struct client_state cs_backup = glparamstate.cs;
-    glInterleavedArrays(GL_T2F_C4F_N3F_V3F, 0, glparamstate.imm_mode.current_vertices);
+    float *base = &glparamstate.imm_mode.current_vertices[0][0];
+    glparamstate.texcoord_array = base;
+    glparamstate.color_array = glparamstate.texcoord_array + 2;
+    glparamstate.normal_array = glparamstate.color_array + 4;
+    glparamstate.vertex_array = glparamstate.normal_array + 3;
+    glparamstate.cs.texcoord_enabled = 1;
+    glparamstate.cs.color_enabled = glparamstate.imm_mode.has_color;
+    glparamstate.cs.normal_enabled = 1;
+    glparamstate.cs.vertex_enabled = 1;
+    glparamstate.color_stride = 12;
+    glparamstate.normal_stride = 12;
+    glparamstate.vertex_stride = 12;
+    glparamstate.texcoord_stride = 12;
     glDrawArrays(glparamstate.imm_mode.prim_type, 0, glparamstate.imm_mode.current_numverts);
     glparamstate.cs = cs_backup;
+    glparamstate.imm_mode.in_gl_begin = 0;
 }
 
 void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
@@ -689,6 +705,8 @@ void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)
 
 void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)
 {
+    if (glparamstate.imm_mode.in_gl_begin)
+        glparamstate.imm_mode.has_color = 1;
     glparamstate.imm_mode.current_color[0] = r / 255.0f;
     glparamstate.imm_mode.current_color[1] = g / 255.0f;
     glparamstate.imm_mode.current_color[2] = b / 255.0f;
@@ -696,6 +714,8 @@ void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)
 }
 void glColor4ubv(const GLubyte *color)
 {
+    if (glparamstate.imm_mode.in_gl_begin)
+        glparamstate.imm_mode.has_color = 1;
     glparamstate.imm_mode.current_color[0] = color[0] / 255.0f;
     glparamstate.imm_mode.current_color[1] = color[1] / 255.0f;
     glparamstate.imm_mode.current_color[2] = color[2] / 255.0f;
@@ -703,6 +723,8 @@ void glColor4ubv(const GLubyte *color)
 }
 void glColor4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 {
+    if (glparamstate.imm_mode.in_gl_begin)
+        glparamstate.imm_mode.has_color = 1;
     glparamstate.imm_mode.current_color[0] = clampf_01(red);
     glparamstate.imm_mode.current_color[1] = clampf_01(green);
     glparamstate.imm_mode.current_color[2] = clampf_01(blue);
@@ -711,6 +733,8 @@ void glColor4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 
 void glColor3f(GLfloat red, GLfloat green, GLfloat blue)
 {
+    if (glparamstate.imm_mode.in_gl_begin)
+        glparamstate.imm_mode.has_color = 1;
     glparamstate.imm_mode.current_color[0] = clampf_01(red);
     glparamstate.imm_mode.current_color[1] = clampf_01(green);
     glparamstate.imm_mode.current_color[2] = clampf_01(blue);
@@ -719,6 +743,8 @@ void glColor3f(GLfloat red, GLfloat green, GLfloat blue)
 
 void glColor4fv(const GLfloat *v)
 {
+    if (glparamstate.imm_mode.in_gl_begin)
+        glparamstate.imm_mode.has_color = 1;
     glparamstate.imm_mode.current_color[0] = clampf_01(v[0]);
     glparamstate.imm_mode.current_color[1] = clampf_01(v[1]);
     glparamstate.imm_mode.current_color[2] = clampf_01(v[2]);
