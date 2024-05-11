@@ -101,6 +101,8 @@ typedef struct glparams_
         int current_vertices_size;
         VertexData *current_vertices;
         GLenum prim_type;
+        unsigned in_gl_begin : 1;
+        unsigned has_color : 1;
     } imm_mode;
 
     union dirty_union
