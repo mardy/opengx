@@ -2127,8 +2127,8 @@ static void setup_render_stages(int texen)
         unsigned char vert_color_src = GX_SRC_VTX;
         if (!glparamstate.cs.color_enabled || !glparamstate.lighting.color_material_enabled) {
             vert_color_src = GX_SRC_REG;
-            GXColor acol, dcol;
-            bool ambient_set = false, diffuse_set = false;
+            GXColor acol, dcol, scol;
+            bool ambient_set = false, diffuse_set = false, specular_set = false;
 
             if (glparamstate.lighting.color_material_enabled) {
                 GXColor ccol = gxcol_new_fv(glparamstate.imm_mode.current_color);
@@ -2144,6 +2144,11 @@ static void setup_render_stages(int texen)
                     dcol = ccol;
                     diffuse_set = true;
                 }
+
+                if (glparamstate.lighting.color_material_mode == GL_SPECULAR) {
+                    scol = ccol;
+                    specular_set = true;
+                }
             }
             if (!ambient_set) {
                 acol = gxcol_new_fv(glparamstate.lighting.matambient);
@@ -2151,12 +2156,20 @@ static void setup_render_stages(int texen)
             if (!diffuse_set) {
                 dcol = gxcol_new_fv(glparamstate.lighting.matdiffuse);
             }
+            if (!specular_set) {
+                scol = gxcol_new_fv(glparamstate.lighting.matspecular);
+            }
 
             /* We would like to find a way to put matspecular into
              * GX_SetChanMatColor(GX_COLOR0A0), since that's the color that GX
              * combines with the specular light. But we also need this register
-             * for the ambient color, which is arguably more important. */
-            GX_SetChanMatColor(GX_COLOR0A0, acol);
+             * for the ambient color, which is arguably more important, so we
+             * give it higher priority. */
+            if (light_mask.ambient_mask) {
+                GX_SetChanMatColor(GX_COLOR0A0, acol);
+            } else {
+                GX_SetChanMatColor(GX_COLOR0A0, scol);
+            }
             GX_SetChanMatColor(GX_COLOR1A1, dcol);
         }
 
