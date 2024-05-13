@@ -46,12 +46,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #define MAX_GXLIST_SIZE (1024 * 1024)
 #define CALL_LIST_START_ID 1
 
-typedef enum {
-    NameUnused = 0,
-    NameReserved,
-    NameUsed,
-} ListUsage ;
-
 typedef struct
 {
     CommandType type;
@@ -121,18 +115,22 @@ typedef struct CommandBuffer
 
 typedef struct
 {
-    char used;
     CommandBuffer *head;
 } CallList;
 
 static CallList call_lists[MAX_CALL_LISTS];
 
+#define BUFFER_IS_VALID(buffer) (((uint32_t)buffer) > 1)
+#define LIST_IS_USED(index) BUFFER_IS_VALID(call_lists[index].head)
+#define LIST_IS_RESERVED_OR_USED(index) (call_lists[index].head != NULL)
+#define LIST_RESERVE(index) call_lists[index].head = (void*)1
+#define LIST_UNRESERVE(index) call_lists[index].head = NULL
+
 static inline int last_command(CommandBuffer **buffer)
 {
     CommandBuffer *next;
 
-
-    while (*buffer) {
+    while (BUFFER_IS_VALID(*buffer)) {
         next = (*buffer)->next;
         if (!next) {
             for (int i = 0; i < MAX_COMMANDS_PER_BUFFER; i++) {
@@ -155,7 +153,7 @@ static Command *new_command(CommandBuffer **head)
     int last_index = -1;
     CommandBuffer *last_buffer = NULL;
 
-    if (*head) {
+    if (BUFFER_IS_VALID(*head)) {
         last_buffer = *head;
         last_index = last_command(&last_buffer);
     }
@@ -276,7 +274,7 @@ static void close_gxlist(Command *command)
 static void close_list(int index)
 {
     CallList *list = &call_lists[index];
-    if (!list->head) return;
+    if (!LIST_IS_USED(index)) return;
 
     CommandBuffer *buffer = list->head;
     int i = last_command(&buffer);
@@ -314,9 +312,11 @@ static void destroy_buffer(CommandBuffer *buffer)
 static void destroy_list(int index)
 {
     CallList *list = &call_lists[index];
-    if (!list->head) return;
+    if (!LIST_IS_RESERVED_OR_USED(index)) return;
 
-    destroy_buffer(list->head);
+    if (BUFFER_IS_VALID(list->head)) {
+        destroy_buffer(list->head);
+    }
     list->head = NULL;
 }
 
@@ -442,13 +442,13 @@ GLuint glGenLists(GLsizei range)
     int remaining = range;
 
     for (int i = 0; i < MAX_CALL_LISTS && remaining > 0; i++) {
-        if (call_lists[i].used == NameUnused) {
+        if (!LIST_IS_RESERVED_OR_USED(i)) {
             remaining--;
             if (remaining == 0) {
                 /* We found a contiguous range available. Reserve them*/
                 int first = i - range + 1;
                 for (int j = first; j < first + range; j++)
-                    call_lists[j].used = NameReserved;
+                    LIST_RESERVE(j);
                 return first + CALL_LIST_START_ID;
             }
         } else {
@@ -485,10 +485,10 @@ void glNewList(GLuint list, GLenum mode)
     glparamstate.current_call_list.index = list;
     glparamstate.current_call_list.must_execute = (mode == GL_COMPILE_AND_EXECUTE);
     glparamstate.current_call_list.execution_depth = 0;
-    if (call_lists[list].used) {
+    if (LIST_IS_USED(list)) {
         destroy_list(list);
     }
-    call_lists[list].used = NameUsed;
+    LIST_RESERVE(list);
 }
 
 void glEndList(void)
@@ -526,7 +526,7 @@ void glCallList(GLuint id)
 
     CallList *list = &call_lists[id - CALL_LIST_START_ID];
     for (CommandBuffer *buffer = list->head;
-         buffer != NULL;
+         BUFFER_IS_VALID(buffer);
          buffer = buffer->next) {
         for (int i =0; i < MAX_COMMANDS_PER_BUFFER; i++) {
             Command *command = &buffer->commands[i];
