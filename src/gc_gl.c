@@ -60,8 +60,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <string.h>
 
-#define ROUND_32B(x) (((x) + 31) & (~31))
-
 glparams_ _ogx_state;
 
 typedef struct
@@ -1361,33 +1359,17 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     }
 }
 
-// If bytes per pixel is decimal (0,5 0,25 ...) we encode the number
-// as the divisor in a negative way
-static int calc_memory(int w, int h, int bytespp)
+static uint32_t calc_memory(int w, int h, uint32_t format)
 {
-    if (bytespp > 0) {
-        return w * h * bytespp;
-    } else {
-        return w * h / (-bytespp);
-    }
+    return GX_GetTexBufferSize(w, h, format, GX_FALSE, 0);
 }
+
 // Returns the number of bytes required to store a texture with all its bitmaps
-static int calc_tex_size(int w, int h, int bytespp)
+static uint32_t calc_tex_size(int w, int h, uint32_t format)
 {
-    int size = 0;
-    while (w > 1 || h > 1) {
-        int mipsize = calc_memory(w, h, bytespp);
-        if ((mipsize % 32) != 0)
-            mipsize += (32 - (mipsize % 32)); // Alignment
-        size += mipsize;
-        if (w != 1)
-            w = w / 2;
-        if (h != 1)
-            h = h / 2;
-    }
-    return size;
+    return GX_GetTexBufferSize(w, h, format, GX_TRUE, 20);
 }
-// Returns the number of bytes required to store a texture with all its bitmaps
+// Deduce the original texture size given the current size and level
 static int calc_original_size(int level, int s)
 {
     while (level > 0) {
@@ -1397,21 +1379,10 @@ static int calc_original_size(int level, int s)
     return s;
 }
 // Given w,h,level,and bpp, returns the offset to the mipmap at level "level"
-static int calc_mipmap_offset(int level, int w, int h, int b)
+static uint32_t calc_mipmap_offset(int level, int w, int h, uint32_t format)
 {
-    int size = 0;
-    while (level > 0) {
-        int mipsize = calc_memory(w, h, b);
-        if ((mipsize % 32) != 0)
-            mipsize += (32 - (mipsize % 32)); // Alignment
-        size += mipsize;
-        if (w != 1)
-            w = w / 2;
-        if (h != 1)
-            h = h / 2;
-        level--;
-    }
-    return size;
+    return level > 0 ?
+        GX_GetTexBufferSize(w, h, format, GX_TRUE, level - 1) : 0;
 }
 
 void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height,
@@ -1471,6 +1442,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     //	if (format == GL_LUMINANCE_ALPHA && internalFormat == GL_RGB) internalFormat = GL_LUMINANCE_ALPHA;
 
     int bytesperpixelinternal = 4, bytesperpixelsrc = 4;
+    uint32_t gx_format;
 
     if (format == GL_RGB)
         bytesperpixelsrc = 3;
@@ -1479,12 +1451,18 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     else if (format == GL_LUMINANCE_ALPHA)
         bytesperpixelsrc = 2;
 
-    if (internalFormat == GL_RGB)
+    if (internalFormat == GL_RGB) {
         bytesperpixelinternal = 2;
-    else if (internalFormat == GL_RGBA)
+        gx_format = GX_TF_RGB565;
+    } else if (internalFormat == GL_RGBA) {
         bytesperpixelinternal = 4;
-    else if (internalFormat == GL_LUMINANCE_ALPHA)
+        gx_format = GX_TF_RGBA8;
+    } else if (internalFormat == GL_LUMINANCE_ALPHA) {
         bytesperpixelinternal = 2;
+        gx_format = GX_TF_IA8;
+    } else {
+        gx_format = GX_TF_CMPR;
+    }
 
     if (internalFormat == GL_COMPRESSED_RGB_ARB && format == GL_RGB) // Only compress on demand and non-alpha textures
         bytesperpixelinternal = -2;                                  // 0.5 bytes per pixel
@@ -1504,14 +1482,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         if (currtex->data != 0)
             free(currtex->data);
         if (level == 0) {
-            int required_size = calc_memory(width, height, bytesperpixelinternal);
-            int tex_size_rnd = ROUND_32B(required_size);
-            currtex->data = memalign(32, tex_size_rnd);
+            uint32_t required_size = calc_memory(width, height, gx_format);
+            currtex->data = memalign(32, required_size);
             currtex->onelevel = 1;
         } else {
-            int required_size = calc_tex_size(wi, he, bytesperpixelinternal);
-            int tex_size_rnd = ROUND_32B(required_size);
-            currtex->data = memalign(32, tex_size_rnd);
+            uint32_t required_size = calc_tex_size(wi, he, gx_format);
+            currtex->data = memalign(32, required_size);
             currtex->onelevel = 0;
         }
         currtex->minlevel = level;
@@ -1528,7 +1504,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // We allocated a onelevel texture (base level 0) but now
         // we are uploading a non-zero level, so we need to create a mipmap capable buffer
         // and copy the level zero texture
-        unsigned int tsize = calc_memory(wi, he, bytesperpixelinternal);
+        uint32_t tsize = calc_memory(wi, he, gx_format);
         unsigned char *tempbuf = malloc(tsize);
         if (!tempbuf) {
             warning("Failed to allocate memory for texture mipmap (%d)", errno);
@@ -1538,9 +1514,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         memcpy(tempbuf, currtex->data, tsize);
         free(currtex->data);
 
-        int required_size = calc_tex_size(wi, he, bytesperpixelinternal);
-        int tex_size_rnd = ROUND_32B(required_size);
-        currtex->data = memalign(32, tex_size_rnd);
+        uint32_t required_size = calc_tex_size(wi, he, gx_format);
+        currtex->data = memalign(32, required_size);
         currtex->onelevel = 0;
 
         memcpy(currtex->data, tempbuf, tsize);
@@ -1584,7 +1559,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         }
 
         // Calculate the offset and address of the mipmap
-        int offset = calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
+        uint32_t offset = calc_mipmap_offset(level, currtex->w, currtex->h, gx_format);
         unsigned char *dst_addr = currtex->data;
         dst_addr += offset;
 
@@ -1601,32 +1576,21 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // Compressed texture
 
         // Calculate the offset and address of the mipmap
-        int offset = calc_mipmap_offset(level, currtex->w, currtex->h, currtex->bytespp);
+        uint32_t offset = calc_mipmap_offset(level, currtex->w, currtex->h, gx_format);
         unsigned char *dst_addr = currtex->data;
         dst_addr += offset;
 
         _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
                                        width, height, needswap);
 
-        DCFlushRange(dst_addr, calc_memory(width, height, bytesperpixelinternal));
+        DCFlushRange(dst_addr, calc_memory(width, height, gx_format));
     }
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
     GX_InvalidateTexAll();
 
-    if (internalFormat == GL_RGBA) {
-        GX_InitTexObj(&currtex->texobj, currtex->data,
-                      currtex->w, currtex->h, GX_TF_RGBA8, currtex->wraps, currtex->wrapt, GX_TRUE);
-    } else if (internalFormat == GL_RGB) {
-        GX_InitTexObj(&currtex->texobj, currtex->data,
-                      currtex->w, currtex->h, GX_TF_RGB565, currtex->wraps, currtex->wrapt, GX_TRUE);
-    } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-        GX_InitTexObj(&currtex->texobj, currtex->data,
-                      currtex->w, currtex->h, GX_TF_IA8, currtex->wraps, currtex->wrapt, GX_TRUE);
-    } else {
-        GX_InitTexObj(&currtex->texobj, currtex->data,
-                      currtex->w, currtex->h, GX_TF_CMPR, currtex->wraps, currtex->wrapt, GX_TRUE);
-    }
+    GX_InitTexObj(&currtex->texobj, currtex->data,
+                  currtex->w, currtex->h, gx_format, currtex->wraps, currtex->wrapt, GX_TRUE);
     GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN, currtex->minlevel, currtex->maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
 }
 
