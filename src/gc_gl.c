@@ -644,6 +644,11 @@ void glGenTextures(GLsizei n, GLuint *textures)
             n--;
         }
     }
+
+    if (n > 0) {
+        warning("Could not allocate %d textures", n);
+        set_error(GL_OUT_OF_MEMORY);
+    }
 }
 void glBegin(GLenum mode)
 {
@@ -652,11 +657,13 @@ void glBegin(GLenum mode)
     glparamstate.imm_mode.prim_type = mode;
     if (!glparamstate.imm_mode.current_vertices) {
         int count = 64;
+        warning("First malloc %d", errno);
         void *buffer = malloc(count * sizeof(VertexData));
         if (buffer) {
             glparamstate.imm_mode.current_vertices = buffer;
             glparamstate.imm_mode.current_vertices_size = count;
         } else {
+            warning("Failed to allocate memory for vertex buffer (%d)", errno);
             set_error(GL_OUT_OF_MEMORY);
         }
     }
@@ -779,6 +786,7 @@ void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
         void *new_buffer = realloc(glparamstate.imm_mode.current_vertices,
                                    new_size * sizeof(VertexData));
         if (!new_buffer) {
+            warning("Failed to reallocate memory for vertex buffer (%d)", errno);
             set_error(GL_OUT_OF_MEMORY);
             return;
         }
@@ -1461,6 +1469,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // and copy the level zero texture
         unsigned int tsize = calc_memory(wi, he, bytesperpixelinternal);
         unsigned char *tempbuf = malloc(tsize);
+        if (!tempbuf) {
+            warning("Failed to allocate memory for texture mipmap (%d)", errno);
+            set_error(GL_OUT_OF_MEMORY);
+            return;
+        }
         memcpy(tempbuf, currtex->data, tsize);
         free(currtex->data);
 
@@ -1477,6 +1490,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // Alpha inputs may be stripped if the user specifies an alpha-free internal format
     if (bytesperpixelinternal > 0) {
         unsigned char *tempbuf = malloc(width * height * bytesperpixelinternal);
+        if (!tempbuf) {
+            warning("Failed to allocate memory for texture (%d)", errno);
+            set_error(GL_OUT_OF_MEMORY);
+            return;
+        }
 
         if (format == GL_RGB) {
             _ogx_conv_rgb_to_rgb565(data, type, tempbuf, width, height);

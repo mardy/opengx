@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OGX_DEBUG_H
 #define OGX_DEBUG_H
 
+#include <errno.h>
 #include <stdio.h>
 
 extern char _ogx_log_level;
