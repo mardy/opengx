@@ -437,6 +437,43 @@ bool _ogx_call_list_append(CommandType op, ...)
     return glparamstate.current_call_list.must_execute;
 }
 
+GLboolean glIsList(GLuint list)
+{
+    if (list < CALL_LIST_START_ID) {
+        return GL_FALSE;
+    }
+
+    list -= CALL_LIST_START_ID;
+    if (list >= MAX_CALL_LISTS) {
+        return GL_FALSE;
+    }
+
+    return LIST_IS_USED(list);
+}
+
+void glDeleteLists(GLuint list, GLsizei range)
+{
+    if (glparamstate.current_call_list.index != -1) {
+        set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    if (range < 0) {
+        set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    for (int i = 0; i < range; i++) {
+        int index = list - CALL_LIST_START_ID;
+        if (index < 0 || index >= MAX_CALL_LISTS) {
+            /* Note that OpenGL does not specify an error in this case */
+            break;
+        }
+
+        destroy_list(index);
+    }
+}
+
 GLuint glGenLists(GLsizei range)
 {
     int remaining = range;
