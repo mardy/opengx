@@ -49,15 +49,14 @@ typedef float VertexData[12];
 
 typedef struct gltexture_
 {
-    void *data;
-    unsigned short w, h;
     GXTexObj texobj;
-    char used;
-    int bytespp;
-    char maxlevel, minlevel;
-    char onelevel;
-    unsigned char wraps, wrapt;
 } gltexture_;
+#define TEXTURE_IS_USED(texture) \
+    (GX_GetTexObjData(&texture.texobj) != NULL)
+#define TEXTURE_IS_RESERVED(texture) \
+    (GX_GetTexObjUserData(&texture.texobj) == (void*)1)
+#define TEXTURE_RESERVE(texture) \
+    GX_InitTexObjUserData(&(texture).texobj, (void*)1)
 
 typedef struct glparams_
 {

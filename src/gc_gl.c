@@ -167,10 +167,6 @@ void ogx_initialize()
     glparamstate.current_call_list.index = -1;
     GX_SetDispCopyGamma(GX_GM_1_0);
     int i;
-    for (i = 0; i < _MAX_GL_TEX; i++) {
-        texture_list[i].used = 0;
-        texture_list[i].data = 0;
-    }
 
     glparamstate.blendenabled = 0;
     glparamstate.srcblend = GX_BL_ONE;
@@ -615,10 +611,10 @@ void glBindTexture(GLenum target, GLuint texture)
     HANDLE_CALL_LIST(BIND_TEXTURE, target, texture);
 
     // If the texture has been initialized (data!=0) then load it to GX reg 0
-    if (texture_list[texture].used) {
+    if (TEXTURE_IS_RESERVED(texture_list[texture])) {
         glparamstate.glcurtex = texture;
 
-        if (texture_list[texture].data != 0)
+        if (TEXTURE_IS_USED(texture_list[texture]))
             GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
     }
 }
@@ -630,10 +626,10 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
     while (n-- > 0) {
         int i = *texlist++;
         if (!(i < 0 || i >= _MAX_GL_TEX)) {
-            if (texture_list[i].data != 0)
-                free(texture_list[i].data);
-            texture_list[i].data = 0;
-            texture_list[i].used = 0;
+            void *data = GX_GetTexObjData(&texture_list[i].texobj);
+            if (data != 0)
+                free(MEM_PHYSICAL_TO_K0(data));
+            memset(&texture_list[i], 0, sizeof(texture_list[i]));
         }
     }
 }
@@ -643,16 +639,10 @@ void glGenTextures(GLsizei n, GLuint *textures)
     GLuint *texlist = textures;
     int i;
     for (i = 0; i < _MAX_GL_TEX && n > 0; i++) {
-        if (texture_list[i].used == 0) {
-            texture_list[i].used = 1;
-            texture_list[i].data = 0;
-            texture_list[i].w = 0;
-            texture_list[i].h = 0;
-            texture_list[i].wraps = GX_REPEAT;
-            texture_list[i].wrapt = GX_REPEAT;
-            texture_list[i].bytespp = 0;
-            texture_list[i].maxlevel = -1;
-            texture_list[i].minlevel = 20;
+        if (!TEXTURE_IS_RESERVED(texture_list[i])) {
+            GXTexObj *texobj = &texture_list[i].texobj;
+            GX_InitTexObj(texobj, NULL, 0, 0, 0, GX_REPEAT, GX_REPEAT, 0);
+            TEXTURE_RESERVE(texture_list[i]);
             *texlist++ = i;
             n--;
         }
@@ -1390,7 +1380,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 {
 
     // Initial checks
-    if (texture_list[glparamstate.glcurtex].used == 0)
+    if (!TEXTURE_IS_RESERVED(texture_list[glparamstate.glcurtex]))
         return;
     if (target != GL_TEXTURE_2D)
         return; // FIXME Implement non 2D textures
@@ -1474,33 +1464,44 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // or wants to create a new texture from scratch
     int wi = calc_original_size(level, width);
     int he = calc_original_size(level, height);
-    currtex->bytespp = bytesperpixelinternal;
+
+    void *gx_data;
+    u16 gx_w, gx_h;
+    u8 curr_gx_format, wraps, wrapt, mipmap;
+    GX_GetTexObjAll(&currtex->texobj, &gx_data, &gx_w, &gx_h,
+                    &curr_gx_format, &wraps, &wrapt, &mipmap);
+    if (gx_data) {
+        gx_data = MEM_PHYSICAL_TO_K0(gx_data);
+    }
+    float minlevel, maxlevel;
+    GX_GetTexObjLOD(&currtex->texobj, &minlevel, &maxlevel);
+    char onelevel = minlevel == 0.0;
 
     // Check if the texture has changed its geometry and proceed to delete it
     // If the specified level is zero, create a onelevel texture to save memory
-    if (wi != currtex->w || he != currtex->h || bytesperpixelinternal != currtex->bytespp) {
-        if (currtex->data != 0)
-            free(currtex->data);
+    if (wi != gx_w || he != gx_h) {
+        if (gx_data != 0)
+            free(gx_data);
         if (level == 0) {
             uint32_t required_size = calc_memory(width, height, gx_format);
-            currtex->data = memalign(32, required_size);
-            currtex->onelevel = 1;
+            gx_data = memalign(32, required_size);
+            onelevel = 1;
         } else {
             uint32_t required_size = calc_tex_size(wi, he, gx_format);
-            currtex->data = memalign(32, required_size);
-            currtex->onelevel = 0;
+            gx_data = memalign(32, required_size);
+            onelevel = 0;
         }
-        currtex->minlevel = level;
-        currtex->maxlevel = level;
+        minlevel = level;
+        maxlevel = level;
+        gx_w = wi;
+        gx_h = he;
     }
-    currtex->w = wi;
-    currtex->h = he;
-    if (currtex->maxlevel < level)
-        currtex->maxlevel = level;
-    if (currtex->minlevel > level)
-        currtex->minlevel = level;
+    if (maxlevel < level)
+        maxlevel = level;
+    if (minlevel > level)
+        minlevel = level;
 
-    if (currtex->onelevel == 1 && level != 0) {
+    if (onelevel == 1 && level != 0) {
         // We allocated a onelevel texture (base level 0) but now
         // we are uploading a non-zero level, so we need to create a mipmap capable buffer
         // and copy the level zero texture
@@ -1511,14 +1512,14 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
             set_error(GL_OUT_OF_MEMORY);
             return;
         }
-        memcpy(tempbuf, currtex->data, tsize);
-        free(currtex->data);
+        memcpy(tempbuf, gx_data, tsize);
+        free(gx_data);
 
         uint32_t required_size = calc_tex_size(wi, he, gx_format);
-        currtex->data = memalign(32, required_size);
-        currtex->onelevel = 0;
+        gx_data = memalign(32, required_size);
+        onelevel = 0;
 
-        memcpy(currtex->data, tempbuf, tsize);
+        memcpy(gx_data, tempbuf, tsize);
         free(tempbuf);
     }
 
@@ -1559,8 +1560,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         }
 
         // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, currtex->w, currtex->h, gx_format);
-        unsigned char *dst_addr = currtex->data;
+        uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
+        unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
         // Finally write to the dest. buffer scrambling the data
@@ -1576,8 +1577,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // Compressed texture
 
         // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, currtex->w, currtex->h, gx_format);
-        unsigned char *dst_addr = currtex->data;
+        uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
+        unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
         _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
@@ -1589,9 +1590,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // Slow but necessary! The new textures may be in the same region of some old cached textures
     GX_InvalidateTexAll();
 
-    GX_InitTexObj(&currtex->texobj, currtex->data,
-                  currtex->w, currtex->h, gx_format, currtex->wraps, currtex->wrapt, GX_TRUE);
-    GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN, currtex->minlevel, currtex->maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
+    GX_InitTexObj(&currtex->texobj, gx_data,
+                  gx_w, gx_h, gx_format, wraps, wrapt, GX_TRUE);
+    GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN,
+                     minlevel, maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
+    TEXTURE_RESERVE(*currtex);
 }
 
 void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
@@ -2620,15 +2623,18 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
         return;
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
+    u8 wraps, wrapt;
 
     switch (pname) {
     case GL_TEXTURE_WRAP_S:
-        currtex->wraps = gcgl_texwrap_conv(param);
-        GX_InitTexObjWrapMode(&currtex->texobj, currtex->wraps, currtex->wrapt);
+        wrapt = GX_GetTexObjWrapT(&currtex->texobj);
+        wraps = gcgl_texwrap_conv(param);
+        GX_InitTexObjWrapMode(&currtex->texobj, wraps, wrapt);
         break;
     case GL_TEXTURE_WRAP_T:
-        texture_list[glparamstate.glcurtex].wrapt = gcgl_texwrap_conv(param);
-        GX_InitTexObjWrapMode(&currtex->texobj, currtex->wraps, currtex->wrapt);
+        wraps = GX_GetTexObjWrapS(&currtex->texobj);
+        wrapt = gcgl_texwrap_conv(param);
+        GX_InitTexObjWrapMode(&currtex->texobj, wraps, wrapt);
         break;
     };
 }
