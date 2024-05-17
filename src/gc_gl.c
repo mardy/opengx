@@ -735,6 +735,11 @@ void glColor4fv(const GLfloat *v)
     glparamstate.imm_mode.current_color[3] = clampf_01(v[3]);
 }
 
+void glColor3fv(const GLfloat *v)
+{
+    glColor3f(v[0], v[1], v[2]);
+}
+
 void glTexCoord2d(GLdouble u, GLdouble v)
 {
     glTexCoord2f(u, v);
@@ -744,6 +749,14 @@ void glTexCoord2f(GLfloat u, GLfloat v)
 {
     glparamstate.imm_mode.current_texcoord[0] = u;
     glparamstate.imm_mode.current_texcoord[1] = v;
+}
+
+void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)
+{
+    glTexCoord2f(s, t);
+    if (r != 0.0) {
+        warning("glTexCoord3f not supported");
+    }
 }
 
 void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
@@ -804,6 +817,11 @@ void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
     vert[9] = x;
     vert[10] = y;
     vert[11] = z;
+}
+
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+    glVertex3f(x / w, y / w, z / w);
 }
 
 void glMatrixMode(GLenum mode)
@@ -2757,8 +2775,11 @@ void glGetFloatv(GLenum pname, GLfloat *params)
 
 // TODO STUB IMPLEMENTATION
 
+void glClipPlane(GLenum plane, const GLdouble *equation) {}
 const GLubyte *glGetString(GLenum name) { return gl_null_string; }
+void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params) {}
 void glLightModelf(GLenum pname, GLfloat param) {}
+void glLightModeli(GLenum pname, GLint param) {}
 void glPushAttrib(GLbitfield mask) {}
 void glPopAttrib(void) {}
 void glPolygonMode(GLenum face, GLenum mode) {}
