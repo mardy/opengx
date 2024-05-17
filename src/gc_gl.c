@@ -106,16 +106,12 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 
 #define PROJECTION_UPDATE                                           \
     {                                                               \
-        float trans[4][4];                                          \
-        int i;                                                      \
-        int j;                                                      \
-        for (i = 0; i < 4; i++)                                     \
-            for (j = 0; j < 4; j++)                                 \
-                trans[i][j] = glparamstate.projection_matrix[j][i]; \
-        if (trans[3][3] != 0)                                       \
-            GX_LoadProjectionMtx(trans, GX_ORTHOGRAPHIC);           \
+        if (glparamstate.projection_matrix[3][3] != 0)              \
+            GX_LoadProjectionMtx(glparamstate.projection_matrix,    \
+                                 GX_ORTHOGRAPHIC);                  \
         else                                                        \
-            GX_LoadProjectionMtx(trans, GX_PERSPECTIVE);            \
+            GX_LoadProjectionMtx(glparamstate.projection_matrix,    \
+                                 GX_PERSPECTIVE);                   \
     }
 
 #define NORMAL_UPDATE                                                  \
