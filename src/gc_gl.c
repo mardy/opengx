@@ -1340,6 +1340,14 @@ static uint32_t calc_mipmap_offset(int level, int w, int h, uint32_t format)
         GX_GetTexBufferSize(w, h, format, GX_TRUE, level - 1) : 0;
 }
 
+void glTexImage1D(GLenum target, GLint level, GLint internalFormat,
+                  GLsizei width, GLint border, GLenum format, GLenum type,
+                  const GLvoid *pixels)
+{
+    glTexImage2D(GL_TEXTURE_2D, level, internalFormat, width, 1,
+                 border, format, type, pixels);
+}
+
 void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height,
                   GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
