@@ -2558,12 +2558,31 @@ void glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
     tmp = 1.0f / (far - near);
     mt[2][0] = 0.0f;
     mt[2][1] = 0.0f;
-    mt[2][2] = -near * tmp;
-    mt[2][3] = -(far * near) * tmp;
+    mt[2][2] = -(far + near) * tmp;
+    mt[2][3] = -2.0 * (far * near) * tmp;
     mt[3][0] = 0.0f;
     mt[3][1] = 0.0f;
     mt[3][2] = -1.0f;
     mt[3][3] = 0.0f;
+
+    glMultMatrixf((float *)mt);
+
+    mt[0][0] = 1.0;
+    mt[0][1] = 0.0;
+    mt[0][2] = 0.0;
+    mt[0][3] = 0.0;
+    mt[1][0] = 0.0;
+    mt[1][1] = 1.0;
+    mt[1][2] = 0.0;
+    mt[1][3] = 0.0;
+    mt[2][0] = 0.0;
+    mt[2][1] = 0.0;
+    mt[2][2] = 0.5;
+    mt[2][3] = -0.5;
+    mt[3][0] = 0.0;
+    mt[3][1] = 0.0;
+    mt[3][2] = 0.0;
+    mt[3][3] = 1.0;
 
     glMultMatrixf((float *)mt);
 }
