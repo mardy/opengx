@@ -1458,6 +1458,14 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     } else if (internalFormat == GL_LUMINANCE_ALPHA) {
         bytesperpixelinternal = 2;
         gx_format = GX_TF_IA8;
+    } else if (internalFormat == GL_LUMINANCE) {
+        bytesperpixelinternal = 1;
+        gx_format = GX_TF_I8;
+    } else if (internalFormat == GL_ALPHA) {
+        bytesperpixelinternal = 1;
+        /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
+         * a real Wii either. */
+        gx_format = GX_TF_I8;
     } else {
         gx_format = GX_TF_CMPR;
     }
@@ -1534,7 +1542,9 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // Inconditionally convert to 565 all inputs without alpha channel
     // Alpha inputs may be stripped if the user specifies an alpha-free internal format
     if (bytesperpixelinternal > 0) {
-        unsigned char *tempbuf = malloc(width * height * bytesperpixelinternal);
+        /* Add pixels on each direction so that the scrambling functions can
+         * read whole 4x4 (or 8x4) tiles without bound checking */
+        unsigned char *tempbuf = malloc((width + 7) * (height + 3) * bytesperpixelinternal);
         if (!tempbuf) {
             warning("Failed to allocate memory for texture (%d)", errno);
             set_error(GL_OUT_OF_MEMORY);
@@ -1557,10 +1567,13 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
             } else if (internalFormat == GL_LUMINANCE_ALPHA) {
                 _ogx_conv_luminance_alpha_to_ia8(data, type, tempbuf, width, height);
             }
+        } else if (format == GL_ALPHA || format == GL_LUMINANCE) {
+            _ogx_conv_intensity_to_i8(data, type, tempbuf, width, height);
         }
 
         // Swap R<->B if necessary
-        if (needswap && internalFormat != GL_LUMINANCE_ALPHA) {
+        if (needswap && bytesperpixelinternal > 1 &&
+            internalFormat != GL_LUMINANCE_ALPHA) {
             if (bytesperpixelinternal == 4)
                 _ogx_swap_rgba(tempbuf, width * height);
             else
@@ -1575,8 +1588,10 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // Finally write to the dest. buffer scrambling the data
         if (bytesperpixelinternal == 4) {
             _ogx_scramble_4b(tempbuf, dst_addr, width, height);
-        } else {
+        } else if (bytesperpixelinternal == 2) {
             _ogx_scramble_2b((unsigned short *)tempbuf, dst_addr, width, height);
+        } else if (bytesperpixelinternal == 1) {
+            _ogx_scramble_1b(tempbuf, dst_addr, width, height);
         }
         free(tempbuf);
 

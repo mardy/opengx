@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "debug.h"
 #include <math.h>
 #include <string.h>
+#include <sys/param.h>
 
 #define FLOAT_TO_BYTE(f) ((GLbyte)(f * 255.0) & 0xff)
 
@@ -164,6 +165,32 @@ void _ogx_conv_rgba_to_rgba32(const void *data, GLenum type,
     }
 }
 
+static void conv_intensityf_to_i8(const float *src, void *dst, int numpixels)
+{
+    uint32_t *out = dst;
+    while (numpixels--) {
+        *out++ = FLOAT_TO_BYTE(src[0]);
+        src++;
+    }
+}
+
+void _ogx_conv_intensity_to_i8(const void *data, GLenum type,
+                               void *dest, int width, int height)
+{
+    int numpixels = width * height;
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        memcpy(dest, data, numpixels);
+        break;
+    case GL_FLOAT:
+        conv_intensityf_to_i8(data, dest, numpixels);
+        break;
+    default:
+        warning("Unsupported texture format %d", type);
+    }
+}
+
 static void conv_laf_to_ia8(const float *src, void *dst, int numpixels)
 {
     uint16_t *out = dst;
@@ -206,6 +233,23 @@ void _ogx_conv_rgba_to_luminance_alpha(unsigned char *src, void *dst,
 }
 
 // 4x4 tile scrambling
+/* 1b texel scrambling */
+void _ogx_scramble_1b(void *src, void *dst, int width, int height)
+{
+    uint64_t *s = src;
+    uint64_t *p = dst;
+
+    int width_blocks = (width + 7) / 8;
+    for (int y = 0; y < height; y += 4) {
+        int rows = MIN(height - y, 4);
+        for (int x = 0; x < width_blocks; x++) {
+            for (int row = 0; row < rows; row++) {
+                *p++ = s[(y + row) * width_blocks + x];
+            }
+        }
+    }
+}
+
 // 2b texel scrambling
 void _ogx_scramble_2b(unsigned short *src, void *dst,
                       const unsigned int width, const unsigned int height)
