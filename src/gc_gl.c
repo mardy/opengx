@@ -1585,6 +1585,13 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     TEXTURE_RESERVE(*currtex);
 }
 
+void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
+                     GLsizei width, GLsizei height, GLenum format, GLenum type,
+                     const GLvoid *pixels)
+{
+    // TODO
+}
+
 void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
 {
     if ((red | green | blue | alpha) != 0)
