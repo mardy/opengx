@@ -52,7 +52,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "utils.h"
 
 #include <GL/gl.h>
-#include <GL/glu.h>
 #include <gctypes.h>
 #include <malloc.h>
 #include <math.h>
@@ -2501,120 +2500,6 @@ void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdou
     newmat[3][3] = 1.0f;
 
     glMultMatrixf((float *)newmat);
-}
-void gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar)
-{
-    GLfloat m[4][4];
-    GLfloat sine, cotangent, deltaZ;
-    GLfloat radians = fovy * (float)(1.0f / 2.0f * M_PI / 180.0f);
-
-    deltaZ = zFar - zNear;
-    sine = sinf(radians);
-    if ((deltaZ == 0) || (sine == 0) || (aspect == 0))
-        return;
-
-    cotangent = cosf(radians) / sine;
-
-    m[0][1] = 0;
-    m[0][2] = 0;
-    m[0][3] = 0;
-    m[1][0] = 0;
-    m[1][2] = 0;
-    m[1][3] = 0;
-    m[2][0] = 0;
-    m[2][1] = 0;
-    m[3][0] = 0;
-    m[3][1] = 0;
-    m[0][0] = cotangent / aspect;
-    m[1][1] = cotangent;
-    m[2][2] = -(zFar + zNear) / deltaZ;
-    m[2][3] = -1;
-    m[3][2] = -2.0 * zNear * zFar / deltaZ;
-    m[3][3] = 0;
-
-    glMultMatrixf((float *)m);
-}
-
-void gluLookAt(GLdouble eyex, GLdouble eyey, GLdouble eyez, GLdouble centerx,
-               GLdouble centery, GLdouble centerz, GLdouble upx, GLdouble upy, GLdouble upz)
-{
-
-    GLfloat forward[3], side[3], up[3];
-    GLfloat m[4][4];
-
-    forward[0] = centerx - eyex;
-    forward[1] = centery - eyey;
-    forward[2] = centerz - eyez;
-
-    up[0] = upx;
-    up[1] = upy;
-    up[2] = upz;
-
-    normalize(forward);
-    cross(forward, up, side);
-    normalize(side);
-    cross(side, forward, up);
-
-    m[0][3] = 0;
-    m[1][3] = 0;
-    m[2][3] = 0;
-    m[3][0] = 0;
-    m[3][1] = 0;
-    m[3][2] = 0;
-    m[3][3] = 1;
-    m[0][0] = side[0];
-    m[1][0] = side[1];
-    m[2][0] = side[2];
-    m[0][1] = up[0];
-    m[1][1] = up[1];
-    m[2][1] = up[2];
-    m[0][2] = -forward[0];
-    m[1][2] = -forward[1];
-    m[2][2] = -forward[2];
-
-    glMultMatrixf(&m[0][0]);
-    glTranslatef(-eyex, -eyey, -eyez);
-}
-
-// Always returns error!
-GLint gluBuild2DMipmaps(GLenum target, GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *data)
-{
-    int level = 0;
-    int bpp = 4;
-    if (format == GL_RGB || format == GL_BGR) {
-        bpp = 3;
-    }
-    unsigned char *buf = malloc(width * height * bpp);
-    int w = width, h = height;
-
-    while (w > 1 && h > 1) {
-        gluScaleImage(format, width, height, type, data, w, h, type, buf);
-        glTexImage2D(target, level, internalFormat, w, h, 0, format, type, buf);
-
-        if (w > 1)
-            w /= 2;
-        if (h > 1)
-            h /= 2;
-        level++;
-    }
-    free(buf);
-    return 0;
-}
-
-GLint gluScaleImage(GLenum format, GLsizei wIn, GLsizei hIn, GLenum typeIn,
-                    const void *dataIn, GLsizei wOut, GLsizei hOut, GLenum typeOut, GLvoid *dataOut)
-{
-    switch (format) {
-    case GL_RGB:
-    case GL_BGR:
-        scale_internal(3, wIn, hIn, dataIn, wOut, hOut, dataOut);
-        return 0;
-    case GL_RGBA:
-    case GL_BGRA:
-        scale_internal(4, wIn, hIn, dataIn, wOut, hOut, dataOut);
-        return 0;
-    };
-    return -1;
 }
 
 // NOT GOING TO IMPLEMENT
