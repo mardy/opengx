@@ -104,14 +104,30 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
         GX_SetCurrentMtx(GX_PNMTX3);                               \
     }
 
+/* OpenGL's projection matrix transform the scene into a clip space where all
+ * the coordinates lie in the range [-1, 1]. Nintendo's GX, however, for the z
+ * coordinates expects a range of [-1, 0], so we need to transform the z
+ * coordinates accordingly: they must be halved (which gives us a range of
+ * [-0.5, 0.5] and translated back by 0.5 (to get [-1, 0]). The adjustment
+ * matrix below does exactly that: it's a matrix that scales and translates the
+ * z coordinate as we just described. */
+static const Mtx44 s_projection_adj = {
+    { 1.0, 0.0, 0.0, 0.0 },
+    { 0.0, 1.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.5, -0.5 },
+    { 0.0, 0.0, 0.0, 1.0 },
+};
+
 #define PROJECTION_UPDATE                                           \
     {                                                               \
+        Mtx44 proj;                                                 \
+        guMtx44Concat(s_projection_adj,                             \
+                      glparamstate.projection_matrix,               \
+                      proj);                                        \
         if (glparamstate.projection_matrix[3][3] != 0)              \
-            GX_LoadProjectionMtx(glparamstate.projection_matrix,    \
-                                 GX_ORTHOGRAPHIC);                  \
+            GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);            \
         else                                                        \
-            GX_LoadProjectionMtx(glparamstate.projection_matrix,    \
-                                 GX_PERSPECTIVE);                   \
+            GX_LoadProjectionMtx(proj, GX_PERSPECTIVE);             \
     }
 
 #define NORMAL_UPDATE                                                  \
@@ -135,12 +151,16 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
  */
 static void get_projection_info(u8 *type, float *near, float *far)
 {
+    Mtx44 proj;
     float A, B;
 
-    A = glparamstate.projection_matrix[2][2];
-    B = glparamstate.projection_matrix[3][2];
+    guMtx44Concat(s_projection_adj,
+                  glparamstate.projection_matrix,
+                  proj);
+    A = proj[2][2];
+    B = proj[2][3];
 
-    if (glparamstate.projection_matrix[3][3] == 0) {
+    if (proj[3][3] == 0) {
         *type = GX_PERSPECTIVE;
         *near = B / (A - 1.0);
     } else {
@@ -2446,8 +2466,8 @@ void glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
     tmp = 1.0f / (far - near);
     mt[2][0] = 0.0f;
     mt[2][1] = 0.0f;
-    mt[2][2] = -near * tmp;
-    mt[2][3] = -(far * near) * tmp;
+    mt[2][2] = -(far + near) * tmp;
+    mt[2][3] = -2.0 * (far * near) * tmp;
     mt[3][0] = 0.0f;
     mt[3][1] = 0.0f;
     mt[3][2] = -1.0f;
@@ -2462,22 +2482,22 @@ void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdou
     // Same as GX's guOrtho, but transposed
     float x = (left + right) / (left - right);
     float y = (bottom + top) / (bottom - top);
-    float z = far_val / (near_val - far_val);
+    float z = (near_val + far_val) / (near_val - far_val);
     newmat[0][0] = 2.0f / (right - left);
     newmat[0][1] = 0.0f;
     newmat[0][2] = 0.0f;
-    newmat[0][3] = 0;
+    newmat[0][3] = x;
     newmat[1][0] = 0.0f;
     newmat[1][1] = 2.0f / (top - bottom);
     newmat[1][2] = 0.0f;
-    newmat[1][3] = 0;
+    newmat[1][3] = y;
     newmat[2][0] = 0.0f;
     newmat[2][1] = 0.0f;
-    newmat[2][2] = 1.0f / (near_val - far_val);
-    newmat[2][3] = 0;
-    newmat[3][0] = x;
-    newmat[3][1] = y;
-    newmat[3][2] = z;
+    newmat[2][2] = 2.0f / (near_val - far_val);
+    newmat[2][3] = z;
+    newmat[3][0] = 0.0f;
+    newmat[3][1] = 0.0f;
+    newmat[3][2] = 0.0f;
     newmat[3][3] = 1.0f;
 
     glMultMatrixf((float *)newmat);
@@ -2507,9 +2527,9 @@ void gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFa
     m[3][1] = 0;
     m[0][0] = cotangent / aspect;
     m[1][1] = cotangent;
-    m[2][2] = -(0 + zNear) / deltaZ;
+    m[2][2] = -(zFar + zNear) / deltaZ;
     m[2][3] = -1;
-    m[3][2] = -zNear * zFar / deltaZ;
+    m[3][2] = -2.0 * zNear * zFar / deltaZ;
     m[3][3] = 0;
 
     glMultMatrixf((float *)m);
