@@ -6,10 +6,13 @@ find_package_handle_standard_args(OpenGL
 	REQUIRED_VARS _OPENGL_gl_gl_INCLUDE_DIR
 )
 
+include(FindPkgConfig)
+pkg_check_modules(GLU glu)
+
 set(_OPENGL_glapi_LIBRARY "opengx")
 set(OPENGL_FOUND ${OpenGL_FOUND})
 set(OPENGL_XMESA_FOUND OFF)
-set(OPENGL_GLU_FOUND OFF)
+set(OPENGL_GLU_FOUND ${GLU_FOUND})
 set(OPENGL_OpenGL_FOUND ${OpenGL_FOUND})
 set(OpenGL_GLX_FOUND OFF)
 set(OpenGL_EGL_FOUND ${OpenGL_FOUND})
@@ -33,7 +36,7 @@ if(OpenGL_FOUND)
 		add_library(OpenGL::GL INTERFACE IMPORTED)
 		set_target_properties(OpenGL::GL PROPERTIES
 			INTERFACE_INCLUDE_DIRECTORIES "${_OPENGL_gl_gl_INCLUDE_DIR}"
-			INTERFACE_LINK_LIBRARIES "${OPENGL_egl_LIBRARY};${_OPENGL_glapi_LIBRARY}"
+			INTERFACE_LINK_LIBRARIES "${GLU_LIBRARIES};${OPENGL_egl_LIBRARY};${_OPENGL_glapi_LIBRARY}"
 		)
 	endif()
 endif()
