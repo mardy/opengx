@@ -850,6 +850,16 @@ void glLoadMatrixf(const GLfloat *m)
     }
     glparamstate.dirty.bits.dirty_matrices = 1;
 }
+
+void glMultMatrixd(const GLdouble *m)
+{
+    GLfloat mf[16];
+    for (int i = 0; i < 16; i++) {
+        mf[i] = m[i];
+    }
+    glMultMatrixf(mf);
+}
+
 void glMultMatrixf(const GLfloat *m)
 {
     Mtx44 curr;
@@ -937,6 +947,12 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
 
     glparamstate.dirty.bits.dirty_matrices = 1;
 }
+
+void glTranslated(GLdouble x, GLdouble y, GLdouble z)
+{
+    glTranslatef(x, y, z);
+}
+
 void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
     Mtx44 newmat;
