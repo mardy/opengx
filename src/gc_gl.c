@@ -1511,58 +1511,30 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // Inconditionally convert to 565 all inputs without alpha channel
     // Alpha inputs may be stripped if the user specifies an alpha-free internal format
     if (bytesperpixelinternal > 0) {
-        /* Add pixels on each direction so that the scrambling functions can
-         * read whole 4x4 (or 8x4) tiles without bound checking */
-        unsigned char *tempbuf = malloc((width + 7) * (height + 3) * bytesperpixelinternal);
-        if (!tempbuf) {
-            warning("Failed to allocate memory for texture (%d)", errno);
-            set_error(GL_OUT_OF_MEMORY);
-            return;
-        }
-
-        if (format == GL_RGB) {
-            _ogx_conv_rgb_to_rgb565(data, type, tempbuf, width, height);
-        } else if (format == GL_RGBA) {
-            if (internalFormat == GL_RGB) {
-                _ogx_conv_rgba_to_rgb565(data, type, tempbuf, width, height);
-            } else if (internalFormat == GL_RGBA) {
-                _ogx_conv_rgba_to_rgba32(data, type, tempbuf, width, height);
-            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-                _ogx_conv_rgba_to_luminance_alpha((unsigned char *)data, tempbuf, width, height);
-            }
-        } else if (format == GL_LUMINANCE_ALPHA) {
-            if (internalFormat == GL_RGB) {
-                // TODO
-            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-                _ogx_conv_luminance_alpha_to_ia8(data, type, tempbuf, width, height);
-            }
-        } else if (format == GL_ALPHA || format == GL_LUMINANCE) {
-            _ogx_conv_intensity_to_i8(data, type, tempbuf, width, height);
-        }
-
-        // Swap R<->B if necessary
-        if (needswap && bytesperpixelinternal > 1 &&
-            internalFormat != GL_LUMINANCE_ALPHA) {
-            if (bytesperpixelinternal == 4)
-                _ogx_swap_rgba(tempbuf, width * height);
-            else
-                _ogx_swap_rgb565((unsigned short *)tempbuf, width * height);
-        }
-
         // Calculate the offset and address of the mipmap
         uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
         unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
-        // Finally write to the dest. buffer scrambling the data
-        if (bytesperpixelinternal == 4) {
-            _ogx_scramble_4b(tempbuf, dst_addr, width, height);
-        } else if (bytesperpixelinternal == 2) {
-            _ogx_scramble_2b((unsigned short *)tempbuf, dst_addr, width, height);
-        } else if (bytesperpixelinternal == 1) {
-            _ogx_scramble_1b(tempbuf, dst_addr, width, height);
+        if (format == GL_RGB) {
+            _ogx_conv_rgb_to_rgb565(data, type, dst_addr, width, height);
+        } else if (format == GL_RGBA) {
+            if (internalFormat == GL_RGB) {
+                _ogx_conv_rgba_to_rgb565(data, type, dst_addr, width, height);
+            } else if (internalFormat == GL_RGBA) {
+                _ogx_conv_rgba_to_rgba32(data, type, dst_addr, width, height);
+            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
+                _ogx_conv_rgba_to_luminance_alpha(data, type, dst_addr, width, height);
+            }
+        } else if (format == GL_LUMINANCE_ALPHA) {
+            if (internalFormat == GL_RGB) {
+                // TODO
+            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
+                _ogx_conv_luminance_alpha_to_ia8(data, type, dst_addr, width, height);
+            }
+        } else if (format == GL_ALPHA || format == GL_LUMINANCE) {
+            _ogx_conv_intensity_to_i8(data, type, dst_addr, width, height);
         }
-        free(tempbuf);
 
         DCFlushRange(dst_addr, width * height * bytesperpixelinternal);
     } else {
