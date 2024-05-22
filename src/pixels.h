@@ -35,8 +35,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <GL/gl.h>
 
-void _ogx_swap_rgba(unsigned char *pixels, int num_pixels);
-void _ogx_swap_rgb565(unsigned short *pixels, int num_pixels);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void _ogx_conv_rgba_to_rgb565(const void *data, GLenum type,
                               void *dest, int width, int height);
 void _ogx_conv_rgb_to_rgb565(const void *data, GLenum type,
@@ -45,14 +47,13 @@ void _ogx_conv_rgba_to_rgba32(const void *data, GLenum type,
                               void *dest, int width, int height);
 void _ogx_conv_luminance_alpha_to_ia8(const void *data, GLenum type,
                                       void *dest, int width, int height);
-void _ogx_conv_rgba_to_luminance_alpha(unsigned char *src, void *dst,
-                                       const unsigned int width, const unsigned int height);
+void _ogx_conv_rgba_to_luminance_alpha(const void *data, GLenum type,
+                                       void *dest, int width, int height);
 void _ogx_conv_intensity_to_i8(const void *data, GLenum type,
                                void *dest, int width, int height);
-void _ogx_scramble_1b(void *src, void *dst, int width, int height);
-void _ogx_scramble_2b(unsigned short *src, void *dst,
-                      const unsigned int width, const unsigned int height);
-void _ogx_scramble_4b(unsigned char *src, void *dst,
-                      const unsigned int width, const unsigned int height);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_PIXELS_H */

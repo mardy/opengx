@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(OpenGX VERSION 0.1)
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 set(TARGET opengx)
 
@@ -15,7 +16,7 @@ add_library(${TARGET} STATIC
     src/image_DXT.c
     src/image_DXT.h
     src/opengx.h
-    src/pixels.c
+    src/pixels.cpp
     src/pixels.h
     src/state.h
     src/utils.h
