@@ -39,18 +39,9 @@ POSSIBILITY OF SUCH DAMAGE.
 extern "C" {
 #endif
 
-void _ogx_conv_rgba_to_rgb565(const void *data, GLenum type,
-                              void *dest, int width, int height);
-void _ogx_conv_rgb_to_rgb565(const void *data, GLenum type,
-                             void *dest, int width, int height);
-void _ogx_conv_rgba_to_rgba32(const void *data, GLenum type,
-                              void *dest, int width, int height);
-void _ogx_conv_luminance_alpha_to_ia8(const void *data, GLenum type,
-                                      void *dest, int width, int height);
-void _ogx_conv_rgba_to_luminance_alpha(const void *data, GLenum type,
-                                       void *dest, int width, int height);
-void _ogx_conv_intensity_to_i8(const void *data, GLenum type,
-                               void *dest, int width, int height);
+void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
+                           int width, int height,
+                           void *dst, uint32_t gx_format);
 
 void _ogx_scale_internal(int components, int widthin, int heightin,
                          const unsigned char *datain,
