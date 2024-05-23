@@ -77,6 +77,8 @@ struct TexelRGBA8 {
 };
 
 struct Texel16 {
+    Texel16() = default;
+    Texel16(uint16_t value): word(value) {}
     void store(void *texture, int x, int y, int pitch) {
         int block_x = x / 4;
         int block_y = y / 4;
@@ -104,7 +106,7 @@ struct TexelIA8: public Texel16 {
 
     TexelIA8() = default;
     TexelIA8(uint8_t intensity, uint8_t alpha):
-        Texel16 { uint16_t((alpha << 8) | intensity) } {}
+        Texel16((alpha << 8) | intensity) {}
 };
 
 struct TexelRGB565: public Texel16 {
@@ -113,10 +115,9 @@ struct TexelRGB565: public Texel16 {
 
     TexelRGB565() = default;
     TexelRGB565(uint8_t r, uint8_t g, uint8_t b):
-        Texel16 { uint16_t(
-            ((r & 0xf8) << 8) |
-            ((g & 0xfc) << 3) |
-            ((b & 0xf8) >> 3)) } {}
+        Texel16(((r & 0xf8) << 8) |
+                ((g & 0xfc) << 3) |
+                ((b & 0xf8) >> 3)) {}
 };
 
 struct TexelI8 {
