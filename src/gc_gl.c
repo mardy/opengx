@@ -1414,17 +1414,6 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     else if (internalFormat == 4)
         internalFormat = GL_RGBA;
 
-    // Simplify but keep in mind the swapping
-    int needswap = 0;
-    if (format == GL_BGR) {
-        format = GL_RGB;
-        needswap = 1;
-    }
-    if (format == GL_BGRA) {
-        format = GL_RGBA;
-        needswap = 1;
-    }
-
     // Fallbacks for formats which we can't handle
     if (internalFormat == GL_COMPRESSED_RGBA_ARB)
         internalFormat = GL_RGBA; // Cannot compress RGBA!
@@ -1463,9 +1452,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         gx_format = GX_TF_I8;
     } else if (internalFormat == GL_ALPHA) {
         bytesperpixelinternal = 1;
-        /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
-         * a real Wii either. */
-        gx_format = GX_TF_I8;
+        gx_format = GX_TF_A8; /* Note, we won't be really passing this to GX */
     } else {
         gx_format = GX_TF_CMPR;
     }
@@ -1547,26 +1534,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
-        if (format == GL_RGB) {
-            _ogx_conv_rgb_to_rgb565(data, type, dst_addr, width, height);
-        } else if (format == GL_RGBA) {
-            if (internalFormat == GL_RGB) {
-                _ogx_conv_rgba_to_rgb565(data, type, dst_addr, width, height);
-            } else if (internalFormat == GL_RGBA) {
-                _ogx_conv_rgba_to_rgba32(data, type, dst_addr, width, height);
-            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-                _ogx_conv_rgba_to_luminance_alpha(data, type, dst_addr, width, height);
-            }
-        } else if (format == GL_LUMINANCE_ALPHA) {
-            if (internalFormat == GL_RGB) {
-                // TODO
-            } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-                _ogx_conv_luminance_alpha_to_ia8(data, type, dst_addr, width, height);
-            }
-        } else if (format == GL_ALPHA || format == GL_LUMINANCE) {
-            _ogx_conv_intensity_to_i8(data, type, dst_addr, width, height);
-        }
-
+        _ogx_bytes_to_texture(data, format, type, width, height,
+                              dst_addr, gx_format);
+        /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
+         * a real Wii either. */
+        if (gx_format == GX_TF_A8) gx_format = GX_TF_I8;
         DCFlushRange(dst_addr, width * height * bytesperpixelinternal);
     } else {
         // Compressed texture
@@ -1575,6 +1547,17 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
         unsigned char *dst_addr = gx_data;
         dst_addr += offset;
+
+        // Simplify but keep in mind the swapping
+        int needswap = 0;
+        if (format == GL_BGR) {
+            format = GL_RGB;
+            needswap = 1;
+        }
+        if (format == GL_BGRA) {
+            format = GL_RGBA;
+            needswap = 1;
+        }
 
         _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
                                        width, height, needswap);

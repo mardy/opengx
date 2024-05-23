@@ -35,6 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "debug.h"
 #include <algorithm>
 #include <math.h>
+#include <ogc/gx.h>
+#include <variant>
 
 static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -46,7 +48,13 @@ static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
     return luminance / 3;
 }
 
-struct TexelRGBA8 {
+struct Texel {
+    virtual void setColor(GXColor color) = 0;
+    virtual void store (void *texture, int x, int y, int pitch) = 0;
+    virtual int pitch_for_width(int width) = 0;
+};
+
+struct TexelRGBA8: public Texel {
     static constexpr bool has_rgb = true;
     static constexpr bool has_alpha = true;
     static constexpr bool has_luminance = false;
@@ -55,7 +63,11 @@ struct TexelRGBA8 {
     TexelRGBA8(uint8_t r, uint8_t g, uint8_t b, uint8_t a):
         r(r), g(g), b(b), a(a) {}
 
-    void store(void *texture, int x, int y, int pitch) {
+    void setColor(GXColor c) override {
+        r = c.r; g = c.g; b = c.b; a = c.a;
+    }
+
+    void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 4;
         int block_y = y / 4;
         uint8_t *d = static_cast<uint8_t*>(texture) +
@@ -71,16 +83,18 @@ struct TexelRGBA8 {
         return ((width + 3) / 4) * 16;
     }
 
+    int pitch_for_width(int width) override { return compute_pitch(width); }
+
     uint8_t r;
     uint8_t g;
     uint8_t b;
     uint8_t a;
 };
 
-struct Texel16 {
+struct Texel16: public Texel {
     Texel16() = default;
     Texel16(uint16_t value): word(value) {}
-    void store(void *texture, int x, int y, int pitch) {
+    void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 4;
         int block_y = y / 4;
         uint8_t *d = static_cast<uint8_t*>(texture) +
@@ -93,6 +107,8 @@ struct Texel16 {
         /* texel are in 4x4 blocks, each element 2 bytes wide */
         return ((width + 3) / 4) * 8;
     }
+
+    int pitch_for_width(int width) override { return compute_pitch(width); }
 
     uint8_t byte0() const { return word >> 8; }
     uint8_t byte1() const { return word & 0xff; }
@@ -108,6 +124,11 @@ struct TexelIA8: public Texel16 {
     TexelIA8() = default;
     TexelIA8(uint8_t intensity, uint8_t alpha):
         Texel16((alpha << 8) | intensity) {}
+
+    void setColor(GXColor c) override {
+        int luminance = (c.r + c.g + c.b) / 3;
+        word = (c.a << 8) | luminance;
+    }
 };
 
 struct TexelRGB565: public Texel16 {
@@ -119,23 +140,25 @@ struct TexelRGB565: public Texel16 {
         Texel16(((r & 0xf8) << 8) |
                 ((g & 0xfc) << 3) |
                 ((b & 0xf8) >> 3)) {}
+
+    void setColor(GXColor c) override {
+        word = ((c.r & 0xf8) << 8) |
+            ((c.g & 0xfc) << 3) |
+            ((c.b & 0xf8) >> 3);
+    }
 };
 
-struct TexelI8 {
-    static constexpr bool has_rgb = false;
-    static constexpr bool has_alpha = false;
-    static constexpr bool has_luminance = true;
+struct Texel8: public Texel {
+    Texel8() = default;
+    Texel8(uint8_t value):
+        value(value) {}
 
-    TexelI8() = default;
-    TexelI8(uint8_t luminance):
-        luminance(luminance) {}
-
-    void store(void *texture, int x, int y, int pitch) {
+    void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 8;
         int block_y = y / 4;
         uint8_t *d = static_cast<uint8_t*>(texture) +
             block_y * pitch * 4 + block_x * 32 + (y % 4) * 8 + (x % 8);
-        d[0] = luminance;
+        d[0] = value;
     }
 
     static inline int compute_pitch(int width) {
@@ -143,15 +166,49 @@ struct TexelI8 {
         return ((width + 7) / 8) * 8;
     }
 
-    uint8_t luminance;
+    int pitch_for_width(int width) override { return compute_pitch(width); }
+
+    uint8_t value;
+};
+
+struct TexelI8: public Texel8 {
+    static constexpr bool has_rgb = false;
+    static constexpr bool has_alpha = false;
+    static constexpr bool has_luminance = true;
+
+    using Texel8::Texel8;
+    void setColor(GXColor c) override {
+        value = (c.r + c.g + c.b) / 3;
+    }
+};
+
+struct TexelA8: public Texel8 {
+    static constexpr bool has_rgb = false;
+    static constexpr bool has_alpha = true;
+    static constexpr bool has_luminance = false;
+
+    using Texel8::Texel8;
+    void setColor(GXColor c) override {
+        value = c.a;
+    }
 };
 
 template <typename T> static inline uint8_t component(T value);
 template <> inline uint8_t component(uint8_t value) { return value; }
+template <> inline uint8_t component(uint16_t value) { return value >> 8; }
+template <> inline uint8_t component(uint32_t value) { return value >> 24; }
 template <> inline uint8_t component(float value) {
     return (uint8_t)(int(std::clamp(value, 0.0f, 1.0f) * 255.0f) & 0xff);
 }
 
+/* This template class is used to perform reading of a pixel and storing it in
+ * the desired texture format in a single go. It does that in about 1/5th of
+ * the time the generic algorithm (on Dolphin the difference is even bigger, up
+ * to 1/10th), at the expense of a larger code size.
+ *
+ * Note that this class does not support packed pixel formats: each pixel
+ * component must be at least one byte wide.
+ */
 template <typename T, char NUM_ELEMS, GLenum FORMAT>
 struct DataReader {
     typedef T type;
@@ -230,6 +287,192 @@ using DataReaderLA = DataReader<T, 2, GL_LUMINANCE_ALPHA>;
 template <typename T>
 using DataReaderIntensity = DataReader<T, 1, GL_LUMINANCE>;
 
+/* Base class for the generic reader: this is used as base class by the
+ * CompoundDataReader and the GenericDataReader classes below.
+ *
+ * Note that for the time being we assume the pitch to be the minimum required
+ * to store a row of pixels.
+ */
+struct DataReaderBase {
+    virtual GXColor read() = 0;
+};
+
+static const struct MasksPerType {
+    GLenum type;
+    char bytes; /* number of bytes per pixel */
+    char rbits; /* bits of data for each component */
+    char gbits;
+    char bbits;
+    char abits;
+    char roff; /* offsets (relative to memory layout, not registers */
+    char goff;
+    char boff;
+    char aoff;
+} s_masks_per_type[] = {
+    {GL_UNSIGNED_BYTE_3_3_2, 1, 3, 3, 2, 0, 0, 3, 6, 0 },
+    {GL_UNSIGNED_BYTE_2_3_3_REV, 1, 3, 3, 2, 0, 5, 2, 0, 0 },
+    {GL_UNSIGNED_SHORT_5_6_5, 2, 5, 6, 5, 0, 0, 5, 11, 0 },
+    {GL_UNSIGNED_SHORT_5_6_5_REV, 2, 5, 6, 5, 0, 11, 5, 0, 0 },
+    {GL_UNSIGNED_SHORT_4_4_4_4, 2, 4, 4, 4, 4, 0, 4, 8, 12 },
+    {GL_UNSIGNED_SHORT_4_4_4_4_REV, 2, 4, 4, 4, 4, 12, 8, 4, 0 },
+    {GL_UNSIGNED_SHORT_5_5_5_1, 2, 5, 5, 5, 1, 0, 5, 10, 15 },
+    {GL_UNSIGNED_SHORT_1_5_5_5_REV, 2, 5, 5, 5, 1, 11, 6, 1, 0 },
+    {GL_UNSIGNED_INT_8_8_8_8, 4, 8, 8, 8, 8, 0, 8, 16, 24 },
+    {GL_UNSIGNED_INT_8_8_8_8_REV, 4, 8, 8, 8, 8, 24, 16, 8, 0 },
+    {GL_UNSIGNED_INT_10_10_10_2, 4, 10, 10, 10, 2, 0, 10, 20, 30 },
+    {GL_UNSIGNED_INT_2_10_10_10_REV, 4, 10, 10, 10, 2, 22, 12, 2, 0 },
+    {0, }
+};
+
+/* This class handles reading of pixels stored in one of the formats listed
+ * above, where each pixel is packed in at most 32 bits. */
+struct CompoundDataReader: public DataReaderBase {
+    CompoundDataReader() = default;
+    CompoundDataReader(const void *data, GLenum format, GLenum type):
+        data(static_cast<const char *>(data)),
+        format(format),
+        mask_data(*find_mask_per_type(type)) {
+        if (format == GL_BGR || format == GL_BGRA) { /* swap red and blue */
+            char tmp = mask_data.roff;
+            mask_data.roff = mask_data.boff;
+            mask_data.boff = tmp;
+        }
+        rmask = compute_mask(mask_data.rbits, mask_data.roff);
+        gmask = compute_mask(mask_data.gbits, mask_data.goff);
+        bmask = compute_mask(mask_data.bbits, mask_data.boff);
+        amask = compute_mask(mask_data.abits, mask_data.aoff);
+    }
+
+    static const MasksPerType *find_mask_per_type(GLenum type) {
+        for (int i = 0; s_masks_per_type[i].type != 0; i++) {
+            if (s_masks_per_type[i].type == type) {
+                return &s_masks_per_type[i];
+            }
+        }
+        return nullptr;
+    }
+
+    inline uint32_t compute_mask(int nbits, int offset) {
+        uint32_t mask = (1 << nbits) - 1;
+        return mask << (mask_data.bytes * 8 - (nbits + offset));
+    }
+
+    inline uint8_t read_component(uint32_t pixel, uint32_t mask,
+                                  int nbits, int offset) {
+        uint32_t value = pixel & mask;
+        int shift = mask_data.bytes * 8 - offset - 8;
+        uint8_t c = shift > 0 ? (value >> shift) : (value << -shift);
+        if (nbits < 8) {
+            c |= (c >> nbits);
+        }
+        return c;
+    }
+
+    inline uint32_t read_pixel() const {
+        uint32_t pixel = 0;
+        for (int i = 0; i < 4; i++) {
+            if (i < mask_data.bytes) {
+                pixel <<= 8;
+                pixel |= data[n_read + i];
+            }
+        }
+        return pixel;
+    }
+
+    GXColor read() override {
+        uint32_t pixel = read_pixel();
+        GXColor c;
+        c.r = read_component(pixel, rmask, mask_data.rbits, mask_data.roff);
+        c.g = read_component(pixel, gmask, mask_data.gbits, mask_data.goff);
+        c.b = read_component(pixel, bmask, mask_data.bbits, mask_data.boff);
+        if (mask_data.abits > 0) {
+            c.a = read_component(pixel, amask, mask_data.abits, mask_data.aoff);
+        } else {
+            c.a = 255;
+        }
+        n_read += mask_data.bytes;
+        return c;
+    }
+
+    const char *data;
+    int n_read = 0;
+    uint32_t rmask;
+    uint32_t gmask;
+    uint32_t bmask;
+    uint32_t amask;
+    MasksPerType mask_data;
+    GLenum format;
+};
+
+static const struct ComponentsPerFormat {
+    GLenum format;
+    char components_per_pixel;
+    char component_index[4]; /* component role (0=red, ..., 3=alpha) */
+} s_components_per_format[] = {
+    { GL_RGBA, 4, { 0, 1, 2, 3 }},
+    { GL_BGRA, 4, { 2, 1, 0, 3 }},
+    { GL_RGB, 3, { 0, 1, 2 }},
+    { GL_BGR, 3, { 2, 1, 0 }},
+    { GL_LUMINANCE_ALPHA, 2, { 0, 3 }},
+    { GL_INTENSITY, 1, { 0 }},
+    { GL_LUMINANCE, 1, { 0 }},
+    { GL_RED, 1, { 0 }},
+    { GL_GREEN, 1, { 1 }},
+    { GL_BLUE, 1, { 2 }},
+    { GL_ALPHA, 1, { 3 }},
+    { 0, }
+};
+
+/* This is a generic class to read pixels whose components are expressed by 8,
+ * 16, 32 bit wide integers or by 32 bit floats.
+ */
+template <typename T>
+struct GenericDataReader: public DataReaderBase {
+    GenericDataReader(const void *data, GLenum format, GLenum type):
+        data(static_cast<const T *>(data)), format(format),
+        component_data(*find_component_data(format)) {}
+
+    static const ComponentsPerFormat *find_component_data(GLenum format) {
+        for (int i = 0; s_components_per_format[i].format != 0; i++) {
+            if (s_components_per_format[i].format == format) {
+                return &s_components_per_format[i];
+            }
+        }
+        return nullptr;
+    }
+
+    int pitch_for_width(int width) {
+        return width * component_data.components_per_pixel * sizeof(T);
+    }
+
+    GXColor read() override {
+        union {
+            uint8_t components[4];
+            GXColor c;
+        } pixel = { 0, 0, 0, 255 };
+
+        const ComponentsPerFormat &cd = component_data;
+        for (int i = 0; i < cd.components_per_pixel; i++) {
+            pixel.components[cd.component_index[i]] = component(data[n_read++]);
+        }
+
+        /* Some formats require a special handling */
+        if (cd.format == GL_INTENSITY ||
+            cd.format == GL_LUMINANCE ||
+            cd.format == GL_LUMINANCE_ALPHA) {
+            pixel.c.g = pixel.c.b = pixel.c.r;
+            if (cd.format == GL_INTENSITY) pixel.c.a = pixel.c.r;
+        }
+
+        return pixel.c;
+    }
+
+    const T *data;
+    GLenum format;
+    int n_read = 0;
+    ComponentsPerFormat component_data;
+};
+
 template <typename READER, typename TEXEL> static inline
 void load_texture_typed(const void *src, int width, int height,
                         void *dest, int x, int y, int dstpitch)
@@ -271,42 +514,123 @@ void load_texture(const void *data, GLenum type,
     }
 }
 
-
-// Discards alpha and fits the texture in 16 bits
-void _ogx_conv_rgba_to_rgb565(const void *data, GLenum type,
-                              void *dst, int width, int height)
+void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
+                           int width, int height,
+                           void *dst, uint32_t gx_format)
 {
-    load_texture<DataReaderRGBA, TexelRGB565>(data, type, dst, width, height);
-}
+    /* Accelerate the most common transformations by using the specialized
+     * readers. We only do this for some transformations, since every
+     * instantiation of the template takes some space, and the number of
+     * possible combinations is polynomial.
+     */
+    if (type == GL_UNSIGNED_BYTE) {
+        if (gx_format == GX_TF_RGB565 && format == GL_RGB) {
+            load_texture<DataReaderRGB, TexelRGB565>(data, type, dst,
+                                                     width, height);
+            return;
+        }
+        if (gx_format == GX_TF_RGBA8 && format == GL_RGBA) {
+            load_texture<DataReaderRGBA, TexelRGBA8>(data, type, dst,
+                                                     width, height);
+            return;
+        }
+        if (gx_format == GX_TF_I8 && format == GL_LUMINANCE) {
+            load_texture<DataReaderIntensity, TexelI8>(data, type, dst,
+                                                       width, height);
+            return;
+        }
+    }
 
-// Fits the texture in 16 bits
-void _ogx_conv_rgb_to_rgb565(const void *data, GLenum type,
-                             void *dst, int width, int height)
-{
-    load_texture<DataReaderRGB, TexelRGB565>(data, type, dst, width, height);
-}
+    /* Here starts the code for the generic converter. We start by selecting
+     * the proper Texel subclass for the given GX texture format, then we
+     * select the reader based on the GL type parameter, and then we do the
+     * conversion pixel by pixel, by using GXColor as intermediate format.
+     *
+     * We use std::variant so that we can safely construct our objects on the
+     * stack. */
+    std::variant<
+        TexelRGBA8,
+        TexelRGB565,
+        TexelIA8,
+        TexelI8,
+        TexelA8
+    > texel_v;
+    Texel *texel;
 
-void _ogx_conv_rgba_to_rgba32(const void *data, GLenum type,
-                              void *dst, int width, int height)
-{
-    load_texture<DataReaderRGBA, TexelRGBA8>(data, type, dst, width, height);
-}
+    std::variant<
+        CompoundDataReader,
+        GenericDataReader<uint8_t>,
+        GenericDataReader<uint16_t>,
+        GenericDataReader<uint32_t>,
+        GenericDataReader<float>
+    > reader_v;
+    DataReaderBase *reader;
 
-void _ogx_conv_intensity_to_i8(const void *data, GLenum type,
-                               void *dst, int width, int height)
-{
-    load_texture<DataReaderIntensity, TexelI8>(data, type, dst, width, height);
-}
+    switch (gx_format) {
+    case GX_TF_RGBA8:
+        texel_v = TexelRGBA8();
+        texel = &std::get<TexelRGBA8>(texel_v);
+        break;
+    case GX_TF_RGB565:
+        texel_v = TexelRGB565();
+        texel = &std::get<TexelRGB565>(texel_v);
+        break;
+    case GX_TF_IA8:
+        texel_v = TexelIA8();
+        texel = &std::get<TexelIA8>(texel_v);
+        break;
+    case GX_TF_I8:
+        texel_v = TexelI8();
+        texel = &std::get<TexelI8>(texel_v);
+        break;
+    case GX_TF_A8:
+        texel_v = TexelA8();
+        texel = &std::get<TexelA8>(texel_v);
+        break;
+    }
 
-void _ogx_conv_luminance_alpha_to_ia8(const void *data, GLenum type,
-                                      void *dst, int width, int height)
-{
-    load_texture<DataReaderLA, TexelIA8>(data, type, dst, width, height);
-}
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        reader_v = GenericDataReader<uint8_t>(data, format, type);
+        reader = &std::get<GenericDataReader<uint8_t>>(reader_v);
+        break;
+    case GL_UNSIGNED_SHORT:
+        reader_v = GenericDataReader<uint16_t>(data, format, type);
+        reader = &std::get<GenericDataReader<uint16_t>>(reader_v);
+        break;
+    case GL_UNSIGNED_INT:
+        reader_v = GenericDataReader<uint32_t>(data, format, type);
+        reader = &std::get<GenericDataReader<uint32_t>>(reader_v);
+        break;
+    case GL_FLOAT:
+        reader_v = GenericDataReader<float>(data, format, type);
+        reader = &std::get<GenericDataReader<float>>(reader_v);
+        break;
+    case GL_UNSIGNED_BYTE_3_3_2:
+    case GL_UNSIGNED_BYTE_2_3_3_REV:
+    case GL_UNSIGNED_SHORT_5_6_5:
+    case GL_UNSIGNED_SHORT_5_6_5_REV:
+    case GL_UNSIGNED_SHORT_4_4_4_4:
+    case GL_UNSIGNED_SHORT_4_4_4_4_REV:
+    case GL_UNSIGNED_SHORT_5_5_5_1:
+    case GL_UNSIGNED_SHORT_1_5_5_5_REV:
+    case GL_UNSIGNED_INT_8_8_8_8:
+    case GL_UNSIGNED_INT_8_8_8_8_REV:
+    case GL_UNSIGNED_INT_10_10_10_2:
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+        reader_v = CompoundDataReader(data, format, type);
+        reader = &std::get<CompoundDataReader>(reader_v);
+        break;
+    default:
+        warning("Unknown texture data type %x\n", type);
+    }
 
-// Converts color into luminance and saves alpha
-void _ogx_conv_rgba_to_luminance_alpha(const void *data, GLenum type,
-                                       void *dst, int width, int height)
-{
-    load_texture<DataReaderRGBA, TexelIA8>(data, type, dst, width, height);
+    int pitch = texel->pitch_for_width(width);
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            GXColor c = reader->read();
+            texel->setColor(c);
+            texel->store(dst, x, y, pitch);
+        }
+    }
 }
