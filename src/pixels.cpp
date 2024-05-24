@@ -493,21 +493,20 @@ void load_texture_typed(const void *src, int width, int height,
 }
 
 template <template<typename> typename READERBASE, typename TEXEL> static inline
-void load_texture(const void *data, GLenum type,
-                   void *dst, int width, int height)
+void load_texture(const void *data, GLenum type, int width, int height,
+                  void *dst, int x, int y, int dstpitch)
 {
     using Texel = TEXEL;
-    int dstpitch = Texel::compute_pitch(width);
 
     switch (type) {
     case GL_BYTE:
     case GL_UNSIGNED_BYTE:
         load_texture_typed<READERBASE<uint8_t>,Texel>(data, width, height,
-                                                      dst, 0, 0, dstpitch);
+                                                      dst, x, y, dstpitch);
         break;
     case GL_FLOAT:
         load_texture_typed<READERBASE<float>,Texel>(data, width, height,
-                                                    dst, 0, 0, dstpitch);
+                                                    dst, x, y, dstpitch);
         break;
     default:
         warning("Unsupported texture format %d", type);
@@ -516,7 +515,8 @@ void load_texture(const void *data, GLenum type,
 
 void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
                            int width, int height,
-                           void *dst, uint32_t gx_format)
+                           void *dst, uint32_t gx_format,
+                           int x, int y, int dstpitch)
 {
     /* Accelerate the most common transformations by using the specialized
      * readers. We only do this for some transformations, since every
@@ -525,18 +525,18 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
      */
     if (type == GL_UNSIGNED_BYTE) {
         if (gx_format == GX_TF_RGB565 && format == GL_RGB) {
-            load_texture<DataReaderRGB, TexelRGB565>(data, type, dst,
-                                                     width, height);
+            load_texture<DataReaderRGB, TexelRGB565>(data, type, width, height,
+                                                     dst, x, y, dstpitch);
             return;
         }
         if (gx_format == GX_TF_RGBA8 && format == GL_RGBA) {
-            load_texture<DataReaderRGBA, TexelRGBA8>(data, type, dst,
-                                                     width, height);
+            load_texture<DataReaderRGBA, TexelRGBA8>(data, type, width, height,
+                                                     dst, x, y, dstpitch);
             return;
         }
         if (gx_format == GX_TF_I8 && format == GL_LUMINANCE) {
-            load_texture<DataReaderIntensity, TexelI8>(data, type, dst,
-                                                       width, height);
+            load_texture<DataReaderIntensity, TexelI8>(data, type, width, height,
+                                                       dst, x, y, dstpitch);
             return;
         }
     }
@@ -625,12 +625,27 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         warning("Unknown texture data type %x\n", type);
     }
 
-    int pitch = texel->pitch_for_width(width);
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
+    for (int ry = 0; ry < height; ry++) {
+        for (int rx = 0; rx < width; rx++) {
             GXColor c = reader->read();
             texel->setColor(c);
-            texel->store(dst, x, y, pitch);
+            texel->store(dst, x + rx, y + ry, dstpitch);
         }
+    }
+}
+
+int _ogc_pitch_for_width(uint32_t gx_format, int width)
+{
+    switch (gx_format) {
+    case GX_TF_RGBA8:
+        return TexelRGBA8::compute_pitch(width);
+    case GX_TF_RGB565:
+    case GX_TF_IA8:
+        return TexelRGB565::compute_pitch(width);
+    case GX_TF_I8:
+    case GX_TF_A8:
+        return TexelI8::compute_pitch(width);
+    default:
+        return -1;
     }
 }

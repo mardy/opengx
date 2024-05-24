@@ -41,7 +41,11 @@ extern "C" {
 
 void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
                            int width, int height,
-                           void *dst, uint32_t gx_format);
+                           void *dst, uint32_t gx_format,
+                           int x, int y, int dstpitch);
+
+int _ogc_pitch_for_width(uint32_t gx_format, int width);
+
 
 #ifdef __cplusplus
 } // extern C
