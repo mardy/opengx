@@ -208,6 +208,10 @@ static void update_texture(const void *data, int level, GLenum format, GLenum ty
         }
     } else {
         // Compressed texture
+        if (x != 0 || y != 0 || ti->width != width) {
+            warning("Update of compressed textures not implemented!");
+            return;
+        }
 
         // Calculate the offset and address of the mipmap
         uint32_t offset = calc_mipmap_offset(level, ti->width, ti->height, ti->format);
@@ -362,6 +366,37 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
     update_texture(data, level, format, type, width, height,
                    &currtex->texobj, &ti, 0, 0);
+}
+
+void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
+                     GLsizei width, GLsizei height, GLenum format, GLenum type,
+                     const GLvoid *data)
+{
+    if (!TEXTURE_IS_USED(texture_list[glparamstate.glcurtex])) {
+        set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    if (target != GL_TEXTURE_2D) {
+        warning("glTexSubImage2D with target 0x%04x not supported", target);
+        return;
+    }
+
+    gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
+
+    TextureInfo ti;
+    texture_get_info(&currtex->texobj, &ti);
+    if (level > ti.maxlevel) {
+        /* OpenGL does not specify this as an error, so we should probably
+         * handle this by allocating new mipmap levels as needed. but let's
+         * leave it as a TODO for now. */
+        warning("glTexSubImage2D called with level %d when max is %d",
+                level, ti.maxlevel);
+        return;
+    }
+
+    update_texture(data, level, format, type, width, height,
+                   &currtex->texobj, &ti, xoffset, yoffset);
 }
 
 void glBindTexture(GLenum target, GLuint texture)
