@@ -2051,6 +2051,7 @@ static unsigned char draw_mode(GLenum mode)
         gxmode = GX_TRIANGLESTRIP;
         break;
     case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
         gxmode = GX_TRIANGLEFAN;
         break;
     case GL_TRIANGLES:
@@ -2059,8 +2060,6 @@ static unsigned char draw_mode(GLenum mode)
     case GL_QUADS:
         gxmode = GX_QUADS;
         break;
-
-    case GL_POLYGON:
     default:
         return 0xff; // FIXME: Emulate these modes
     }
