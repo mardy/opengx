@@ -1428,39 +1428,22 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // TODO: Implement GL_LUMINANCE/GL_INTENSITY? and fallback from GL_LUM_ALPHA to GL_LUM instead of RGB (2bytes to 1byte)
     //	if (format == GL_LUMINANCE_ALPHA && internalFormat == GL_RGB) internalFormat = GL_LUMINANCE_ALPHA;
 
-    int bytesperpixelinternal = 4, bytesperpixelsrc = 4;
     uint32_t gx_format;
-
-    if (format == GL_RGB)
-        bytesperpixelsrc = 3;
-    else if (format == GL_RGBA)
-        bytesperpixelsrc = 4;
-    else if (format == GL_LUMINANCE_ALPHA)
-        bytesperpixelsrc = 2;
-
     if (internalFormat == GL_RGB) {
-        bytesperpixelinternal = 2;
         gx_format = GX_TF_RGB565;
     } else if (internalFormat == GL_RGBA) {
-        bytesperpixelinternal = 4;
         gx_format = GX_TF_RGBA8;
     } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-        bytesperpixelinternal = 2;
         gx_format = GX_TF_IA8;
     } else if (internalFormat == GL_LUMINANCE) {
-        bytesperpixelinternal = 1;
         gx_format = GX_TF_I8;
     } else if (internalFormat == GL_ALPHA) {
-        bytesperpixelinternal = 1;
         gx_format = GX_TF_A8; /* Note, we won't be really passing this to GX */
     } else {
         gx_format = GX_TF_CMPR;
     }
 
-    if (internalFormat == GL_COMPRESSED_RGB_ARB && format == GL_RGB) // Only compress on demand and non-alpha textures
-        bytesperpixelinternal = -2;                                  // 0.5 bytes per pixel
-
-    if (bytesperpixelinternal < 0 && (width < 8 || height < 8))
+    if (gx_format == GX_TF_CMPR && (width < 8 || height < 8))
         return; // Cannot take compressed textures under 8x8 (4 blocks of 4x4, 32B)
 
     // We *may* need to delete and create a new texture, depending if the user wants to add some mipmap levels
@@ -1526,12 +1509,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         free(tempbuf);
     }
 
+    unsigned char *dst_addr = gx_data;
     // Inconditionally convert to 565 all inputs without alpha channel
     // Alpha inputs may be stripped if the user specifies an alpha-free internal format
-    if (bytesperpixelinternal > 0) {
+    if (gx_format != GX_TF_CMPR) {
         // Calculate the offset and address of the mipmap
         uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
-        unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
         _ogx_bytes_to_texture(data, format, type, width, height,
@@ -1539,13 +1522,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
          * a real Wii either. */
         if (gx_format == GX_TF_A8) gx_format = GX_TF_I8;
-        DCFlushRange(dst_addr, width * height * bytesperpixelinternal);
     } else {
         // Compressed texture
 
         // Calculate the offset and address of the mipmap
         uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
-        unsigned char *dst_addr = gx_data;
         dst_addr += offset;
 
         // Simplify but keep in mind the swapping
@@ -1561,9 +1542,9 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
         _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
                                        width, height, needswap);
-
-        DCFlushRange(dst_addr, calc_memory(width, height, gx_format));
     }
+
+    DCFlushRange(dst_addr, calc_memory(width, height, gx_format));
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
     GX_InvalidateTexAll();
