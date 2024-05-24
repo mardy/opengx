@@ -55,8 +55,4 @@ void _ogx_scramble_2b(unsigned short *src, void *dst,
 void _ogx_scramble_4b(unsigned char *src, void *dst,
                       const unsigned int width, const unsigned int height);
 
-void _ogx_scale_internal(int components, int widthin, int heightin,
-                         const unsigned char *datain,
-                         int widthout, int heightout, unsigned char *dataout);
-
 #endif /* OPENGX_PIXELS_H */
