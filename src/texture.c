@@ -288,8 +288,9 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         uint32_t offset = calc_mipmap_offset(level, ti.width, ti.height, gx_format);
         dst_addr += offset;
 
+        int dstpitch = _ogx_pitch_for_width(gx_format, ti.width);
         _ogx_bytes_to_texture(data, format, type, width, height,
-                              dst_addr, gx_format);
+                              dst_addr, gx_format, 0, 0, dstpitch);
         /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
          * a real Wii either. */
         if (gx_format == GX_TF_A8) gx_format = GX_TF_I8;
