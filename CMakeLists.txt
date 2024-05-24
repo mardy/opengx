@@ -19,6 +19,7 @@ add_library(${TARGET} STATIC
     src/pixels.cpp
     src/pixels.h
     src/state.h
+    src/texture.c
     src/utils.h
 )
 set_target_properties(${TARGET} PROPERTIES

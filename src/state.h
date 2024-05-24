@@ -51,12 +51,6 @@ typedef struct gltexture_
 {
     GXTexObj texobj;
 } gltexture_;
-#define TEXTURE_IS_USED(texture) \
-    (GX_GetTexObjData(&texture.texobj) != NULL)
-#define TEXTURE_IS_RESERVED(texture) \
-    (GX_GetTexObjUserData(&texture.texobj) == (void*)1)
-#define TEXTURE_RESERVE(texture) \
-    GX_InitTexObjUserData(&(texture).texobj, (void*)1)
 
 typedef struct glparams_
 {
