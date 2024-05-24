@@ -46,6 +46,13 @@ POSSIBILITY OF SUCH DAMAGE.
 #define TEXTURE_RESERVE(texture) \
     GX_InitTexObjUserData(&(texture).texobj, (void*)1)
 
+typedef struct {
+    void *texels;
+    uint16_t width, height;
+    uint8_t format, wraps, wrapt, mipmap;
+    uint8_t minlevel, maxlevel;
+} TextureInfo;
+
 static uint32_t calc_memory(int w, int h, uint32_t format)
 {
     return GX_GetTexBufferSize(w, h, format, GX_FALSE, 0);
@@ -83,6 +90,23 @@ static unsigned char gcgl_texwrap_conv(GLint param)
     default:
         return GX_REPEAT;
     };
+}
+
+static void texture_get_info(const GXTexObj *obj, TextureInfo *info)
+{
+    GX_GetTexObjAll(obj, &info->texels,
+                    &info->width, &info->height,
+                    &info->format,
+                    &info->wraps, &info->wrapt,
+                    &info->mipmap);
+    if (info->texels) {
+        info->texels = MEM_PHYSICAL_TO_K0(info->texels);
+    }
+
+    float minlevel, maxlevel;
+    GX_GetTexObjLOD(obj, &minlevel, &maxlevel);
+    info->minlevel = minlevel;
+    info->maxlevel = maxlevel;
 }
 
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
@@ -206,41 +230,33 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     int wi = calc_original_size(level, width);
     int he = calc_original_size(level, height);
 
-    void *gx_data;
-    u16 gx_w, gx_h;
-    u8 curr_gx_format, wraps, wrapt, mipmap;
-    GX_GetTexObjAll(&currtex->texobj, &gx_data, &gx_w, &gx_h,
-                    &curr_gx_format, &wraps, &wrapt, &mipmap);
-    if (gx_data) {
-        gx_data = MEM_PHYSICAL_TO_K0(gx_data);
-    }
-    float minlevel, maxlevel;
-    GX_GetTexObjLOD(&currtex->texobj, &minlevel, &maxlevel);
-    char onelevel = minlevel == 0.0;
+    TextureInfo ti;
+    texture_get_info(&currtex->texobj, &ti);
+    char onelevel = ti.minlevel == 0.0;
 
     // Check if the texture has changed its geometry and proceed to delete it
     // If the specified level is zero, create a onelevel texture to save memory
-    if (wi != gx_w || he != gx_h) {
-        if (gx_data != 0)
-            free(gx_data);
+    if (wi != ti.width || he != ti.height) {
+        if (ti.texels != 0)
+            free(ti.texels);
         if (level == 0) {
             uint32_t required_size = calc_memory(width, height, gx_format);
-            gx_data = memalign(32, required_size);
+            ti.texels = memalign(32, required_size);
             onelevel = 1;
         } else {
             uint32_t required_size = calc_tex_size(wi, he, gx_format);
-            gx_data = memalign(32, required_size);
+            ti.texels = memalign(32, required_size);
             onelevel = 0;
         }
-        minlevel = level;
-        maxlevel = level;
-        gx_w = wi;
-        gx_h = he;
+        ti.minlevel = level;
+        ti.maxlevel = level;
+        ti.width = wi;
+        ti.height = he;
     }
-    if (maxlevel < level)
-        maxlevel = level;
-    if (minlevel > level)
-        minlevel = level;
+    if (ti.maxlevel < level)
+        ti.maxlevel = level;
+    if (ti.minlevel > level)
+        ti.minlevel = level;
 
     if (onelevel == 1 && level != 0) {
         // We allocated a onelevel texture (base level 0) but now
@@ -253,23 +269,23 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
             set_error(GL_OUT_OF_MEMORY);
             return;
         }
-        memcpy(tempbuf, gx_data, tsize);
-        free(gx_data);
+        memcpy(tempbuf, ti.texels, tsize);
+        free(ti.texels);
 
         uint32_t required_size = calc_tex_size(wi, he, gx_format);
-        gx_data = memalign(32, required_size);
+        ti.texels = memalign(32, required_size);
         onelevel = 0;
 
-        memcpy(gx_data, tempbuf, tsize);
+        memcpy(ti.texels, tempbuf, tsize);
         free(tempbuf);
     }
 
-    unsigned char *dst_addr = gx_data;
+    unsigned char *dst_addr = ti.texels;
     // Inconditionally convert to 565 all inputs without alpha channel
     // Alpha inputs may be stripped if the user specifies an alpha-free internal format
     if (gx_format != GX_TF_CMPR) {
         // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
+        uint32_t offset = calc_mipmap_offset(level, ti.width, ti.height, gx_format);
         dst_addr += offset;
 
         _ogx_bytes_to_texture(data, format, type, width, height,
@@ -281,7 +297,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // Compressed texture
 
         // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, gx_w, gx_h, gx_format);
+        uint32_t offset = calc_mipmap_offset(level, ti.width, ti.height, gx_format);
         dst_addr += offset;
 
         // Simplify but keep in mind the swapping
@@ -304,10 +320,10 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     // Slow but necessary! The new textures may be in the same region of some old cached textures
     GX_InvalidateTexAll();
 
-    GX_InitTexObj(&currtex->texobj, gx_data,
-                  gx_w, gx_h, gx_format, wraps, wrapt, GX_TRUE);
+    GX_InitTexObj(&currtex->texobj, ti.texels,
+                  ti.width, ti.height, gx_format, ti.wraps, ti.wrapt, GX_TRUE);
     GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN,
-                     minlevel, maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
+                     ti.minlevel, ti.maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
     TEXTURE_RESERVE(*currtex);
 }
 
