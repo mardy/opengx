@@ -39,18 +39,36 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <malloc.h>
 
+/* The GX API allow storing a void * for user data into the GXTexObj; but for
+ * now we don't need a pointer, just some bits of information. Let's store them
+ * in the space reserved for the pointer, then. */
+typedef union {
+    void *ptr;
+    struct {
+        unsigned is_reserved: 1;
+        unsigned is_alpha: 1;
+    } d;
+} UserData;
+
+#define TEXTURE_USER_DATA(texobj) \
+    ((UserData)GX_GetTexObjUserData(texobj))
 #define TEXTURE_IS_USED(texture) \
     (GX_GetTexObjData(&texture.texobj) != NULL)
 #define TEXTURE_IS_RESERVED(texture) \
-    (GX_GetTexObjUserData(&texture.texobj) == (void*)1)
+    (TEXTURE_USER_DATA(&texture.texobj).d.is_reserved)
 #define TEXTURE_RESERVE(texture) \
-    GX_InitTexObjUserData(&(texture).texobj, (void*)1)
+    { \
+        UserData ud = TEXTURE_USER_DATA(&(texture).texobj); \
+        ud.d.is_reserved = 1; \
+        GX_InitTexObjUserData(&(texture).texobj, ud.ptr); \
+    }
 
 typedef struct {
     void *texels;
     uint16_t width, height;
     uint8_t format, wraps, wrapt, mipmap;
     uint8_t minlevel, maxlevel;
+    UserData ud;
 } TextureInfo;
 
 static uint32_t calc_memory(int w, int h, uint32_t format)
@@ -107,6 +125,11 @@ static void texture_get_info(const GXTexObj *obj, TextureInfo *info)
     GX_GetTexObjLOD(obj, &minlevel, &maxlevel);
     info->minlevel = minlevel;
     info->maxlevel = maxlevel;
+    info->ud.ptr = GX_GetTexObjUserData(obj);
+
+    /* Check if we wanted an alpha channel instead */
+    if (info->format == GX_TF_I8 && info->ud.d.is_alpha)
+        info->format = GX_TF_A8;
 }
 
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
@@ -160,6 +183,61 @@ void glTexImage1D(GLenum target, GLint level, GLint internalFormat,
 {
     glTexImage2D(GL_TEXTURE_2D, level, internalFormat, width, 1,
                  border, format, type, pixels);
+}
+
+static void update_texture(const void *data, int level, GLenum format, GLenum type,
+                           int width, int height,
+                           GXTexObj *obj, TextureInfo *ti, int x, int y)
+{
+    unsigned char *dst_addr = ti->texels;
+    // Inconditionally convert to 565 all inputs without alpha channel
+    // Alpha inputs may be stripped if the user specifies an alpha-free internal format
+    if (ti->format != GX_TF_CMPR) {
+        // Calculate the offset and address of the mipmap
+        uint32_t offset = calc_mipmap_offset(level, ti->width, ti->height, ti->format);
+        dst_addr += offset;
+
+        int dstpitch = _ogx_pitch_for_width(ti->format, ti->width);
+        _ogx_bytes_to_texture(data, format, type, width, height,
+                              dst_addr, ti->format, x, y, dstpitch);
+        /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
+         * a real Wii either. */
+        if (ti->format == GX_TF_A8) {
+            ti->format = GX_TF_I8;
+            ti->ud.d.is_alpha = 1; /* Remember that we wanted alpha, though */
+        }
+    } else {
+        // Compressed texture
+
+        // Calculate the offset and address of the mipmap
+        uint32_t offset = calc_mipmap_offset(level, ti->width, ti->height, ti->format);
+        dst_addr += offset;
+
+        // Simplify but keep in mind the swapping
+        int needswap = 0;
+        if (format == GL_BGR) {
+            format = GL_RGB;
+            needswap = 1;
+        }
+        if (format == GL_BGRA) {
+            format = GL_RGBA;
+            needswap = 1;
+        }
+
+        _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
+                                       width, height, needswap);
+    }
+
+    DCFlushRange(dst_addr, calc_memory(width, height, ti->format));
+
+    // Slow but necessary! The new textures may be in the same region of some old cached textures
+    GX_InvalidateTexAll();
+
+    GX_InitTexObj(obj, ti->texels,
+                  ti->width, ti->height, ti->format, ti->wraps, ti->wrapt, GX_TRUE);
+    GX_InitTexObjLOD(obj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN,
+                     ti->minlevel, ti->maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
+    GX_InitTexObjUserData(obj, ti->ud.ptr);
 }
 
 void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height,
@@ -232,6 +310,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
     TextureInfo ti;
     texture_get_info(&currtex->texobj, &ti);
+    ti.format = gx_format;
+    ti.ud.d.is_reserved = 1;
     char onelevel = ti.minlevel == 0.0;
 
     // Check if the texture has changed its geometry and proceed to delete it
@@ -240,11 +320,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         if (ti.texels != 0)
             free(ti.texels);
         if (level == 0) {
-            uint32_t required_size = calc_memory(width, height, gx_format);
+            uint32_t required_size = calc_memory(width, height, ti.format);
             ti.texels = memalign(32, required_size);
             onelevel = 1;
         } else {
-            uint32_t required_size = calc_tex_size(wi, he, gx_format);
+            uint32_t required_size = calc_tex_size(wi, he, ti.format);
             ti.texels = memalign(32, required_size);
             onelevel = 0;
         }
@@ -262,7 +342,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // We allocated a onelevel texture (base level 0) but now
         // we are uploading a non-zero level, so we need to create a mipmap capable buffer
         // and copy the level zero texture
-        uint32_t tsize = calc_memory(wi, he, gx_format);
+        uint32_t tsize = calc_memory(wi, he, ti.format);
         unsigned char *tempbuf = malloc(tsize);
         if (!tempbuf) {
             warning("Failed to allocate memory for texture mipmap (%d)", errno);
@@ -272,7 +352,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         memcpy(tempbuf, ti.texels, tsize);
         free(ti.texels);
 
-        uint32_t required_size = calc_tex_size(wi, he, gx_format);
+        uint32_t required_size = calc_tex_size(wi, he, ti.format);
         ti.texels = memalign(32, required_size);
         onelevel = 0;
 
@@ -280,52 +360,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         free(tempbuf);
     }
 
-    unsigned char *dst_addr = ti.texels;
-    // Inconditionally convert to 565 all inputs without alpha channel
-    // Alpha inputs may be stripped if the user specifies an alpha-free internal format
-    if (gx_format != GX_TF_CMPR) {
-        // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, ti.width, ti.height, gx_format);
-        dst_addr += offset;
-
-        int dstpitch = _ogx_pitch_for_width(gx_format, ti.width);
-        _ogx_bytes_to_texture(data, format, type, width, height,
-                              dst_addr, gx_format, 0, 0, dstpitch);
-        /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
-         * a real Wii either. */
-        if (gx_format == GX_TF_A8) gx_format = GX_TF_I8;
-    } else {
-        // Compressed texture
-
-        // Calculate the offset and address of the mipmap
-        uint32_t offset = calc_mipmap_offset(level, ti.width, ti.height, gx_format);
-        dst_addr += offset;
-
-        // Simplify but keep in mind the swapping
-        int needswap = 0;
-        if (format == GL_BGR) {
-            format = GL_RGB;
-            needswap = 1;
-        }
-        if (format == GL_BGRA) {
-            format = GL_RGBA;
-            needswap = 1;
-        }
-
-        _ogx_convert_rgb_image_to_DXT1((unsigned char *)data, dst_addr,
-                                       width, height, needswap);
-    }
-
-    DCFlushRange(dst_addr, calc_memory(width, height, gx_format));
-
-    // Slow but necessary! The new textures may be in the same region of some old cached textures
-    GX_InvalidateTexAll();
-
-    GX_InitTexObj(&currtex->texobj, ti.texels,
-                  ti.width, ti.height, gx_format, ti.wraps, ti.wrapt, GX_TRUE);
-    GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN,
-                     ti.minlevel, ti.maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
-    TEXTURE_RESERVE(*currtex);
+    update_texture(data, level, format, type, width, height,
+                   &currtex->texobj, &ti, 0, 0);
 }
 
 void glBindTexture(GLenum target, GLuint texture)
