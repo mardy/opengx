@@ -658,3 +658,28 @@ int _ogx_pitch_for_width(uint32_t gx_format, int width)
         return -1;
     }
 }
+
+uint32_t _ogx_gl_format_to_gx(GLenum format)
+{
+    switch (format) {
+    case 3:
+    case GL_RGB:
+    case GL_BGR:
+    case GL_RGB4:
+    case GL_RGB5:
+    case GL_RGB8:
+        return GX_TF_RGB565;
+    case 4:
+    case GL_RGBA:
+    case GL_BGRA:
+    case GL_COMPRESSED_RGBA_ARB: /* No support for compressed alpha textures */
+        return GX_TF_RGBA8;
+    case GL_LUMINANCE_ALPHA: return GX_TF_IA8;
+    case GL_LUMINANCE: return GX_TF_I8;
+    case GL_ALPHA:
+        /* Note, we won't be really passing this to GX */
+        return GX_TF_A8;
+    default:
+        return GX_TF_CMPR;
+    }
+}

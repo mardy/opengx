@@ -259,26 +259,6 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
 
-    // Just simplify it a little ;)
-    if (internalFormat == GL_BGR)
-        internalFormat = GL_RGB;
-    else if (internalFormat == GL_BGRA)
-        internalFormat = GL_RGBA;
-    else if (internalFormat == GL_RGB4)
-        internalFormat = GL_RGB;
-    else if (internalFormat == GL_RGB5)
-        internalFormat = GL_RGB;
-    else if (internalFormat == GL_RGB8)
-        internalFormat = GL_RGB;
-    else if (internalFormat == 3)
-        internalFormat = GL_RGB;
-    else if (internalFormat == 4)
-        internalFormat = GL_RGBA;
-
-    // Fallbacks for formats which we can't handle
-    if (internalFormat == GL_COMPRESSED_RGBA_ARB)
-        internalFormat = GL_RGBA; // Cannot compress RGBA!
-
     // Simplify and avoid stupid conversions (which waste space for no gain)
     if (format == GL_RGB && internalFormat == GL_RGBA)
         internalFormat = GL_RGB;
@@ -286,24 +266,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     if (format == GL_LUMINANCE_ALPHA && internalFormat == GL_RGBA)
         internalFormat = GL_LUMINANCE_ALPHA;
 
-    // TODO: Implement GL_LUMINANCE/GL_INTENSITY? and fallback from GL_LUM_ALPHA to GL_LUM instead of RGB (2bytes to 1byte)
-    //	if (format == GL_LUMINANCE_ALPHA && internalFormat == GL_RGB) internalFormat = GL_LUMINANCE_ALPHA;
-
-    uint32_t gx_format;
-    if (internalFormat == GL_RGB) {
-        gx_format = GX_TF_RGB565;
-    } else if (internalFormat == GL_RGBA) {
-        gx_format = GX_TF_RGBA8;
-    } else if (internalFormat == GL_LUMINANCE_ALPHA) {
-        gx_format = GX_TF_IA8;
-    } else if (internalFormat == GL_LUMINANCE) {
-        gx_format = GX_TF_I8;
-    } else if (internalFormat == GL_ALPHA) {
-        gx_format = GX_TF_A8; /* Note, we won't be really passing this to GX */
-    } else {
-        gx_format = GX_TF_CMPR;
-    }
-
+    uint32_t gx_format = _ogx_gl_format_to_gx(internalFormat);
     if (gx_format == GX_TF_CMPR && (width < 8 || height < 8))
         return; // Cannot take compressed textures under 8x8 (4 blocks of 4x4, 32B)
 

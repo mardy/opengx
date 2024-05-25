@@ -45,6 +45,7 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
                            int x, int y, int dstpitch);
 
 int _ogx_pitch_for_width(uint32_t gx_format, int width);
+uint32_t _ogx_gl_format_to_gx(GLenum format);
 
 
 #ifdef __cplusplus
