@@ -33,10 +33,30 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "pixels.h"
 
 #include "debug.h"
+#include "opengx.h"
+
 #include <algorithm>
 #include <math.h>
 #include <ogc/gx.h>
 #include <variant>
+
+#define MAX_FAST_CONVERSIONS 8
+
+typedef void (FastConverter)(const void *data, GLenum type, int width, int height,
+                              void *dst, int x, int y, int dstpitch);
+static struct FastConversion {
+    GLenum gl_format;
+    u8 gx_format;
+    union {
+        uintptr_t id;
+        FastConverter *func;
+    } conv;
+} s_registered_conversions[MAX_FAST_CONVERSIONS] = {
+    { GL_RGB, GX_TF_RGB565, ogx_fast_conv_RGB_RGB565 },
+    { GL_RGBA, GX_TF_RGBA8, ogx_fast_conv_RGBA_RGBA8 },
+    { GL_LUMINANCE, GX_TF_I8, ogx_fast_conv_Intensity_I8 },
+    0,
+};
 
 static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -532,20 +552,12 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
      * instantiation of the template takes some space, and the number of
      * possible combinations is polynomial.
      */
-    if (type == GL_UNSIGNED_BYTE) {
-        if (gx_format == GX_TF_RGB565 && format == GL_RGB) {
-            load_texture<DataReaderRGB, TexelRGB565>(data, type, width, height,
-                                                     dst, x, y, dstpitch);
-            return;
-        }
-        if (gx_format == GX_TF_RGBA8 && format == GL_RGBA) {
-            load_texture<DataReaderRGBA, TexelRGBA8>(data, type, width, height,
-                                                     dst, x, y, dstpitch);
-            return;
-        }
-        if (gx_format == GX_TF_I8 && format == GL_LUMINANCE) {
-            load_texture<DataReaderIntensity, TexelI8>(data, type, width, height,
-                                                       dst, x, y, dstpitch);
+    for (int i = 0; i < MAX_FAST_CONVERSIONS; i++) {
+        const FastConversion &c = s_registered_conversions[i];
+        if (c.gl_format == 0) break;
+
+        if (c.gl_format == format && c.gx_format == gx_format) {
+            c.conv.func(data, type, width, height, dst, x, y, dstpitch);
             return;
         }
     }
@@ -682,4 +694,52 @@ uint32_t _ogx_gl_format_to_gx(GLenum format)
     default:
         return GX_TF_CMPR;
     }
+}
+
+#define DEFINE_FAST_CONVERSION(reader, texel) \
+    static void fast_conv_##reader##_##texel( \
+        const void *data, GLenum type, int width, int height, \
+        void *dst, int x, int y, int dstpitch) \
+    { \
+        load_texture<DataReader ## reader, Texel ## texel>( \
+            data, type, width, height, dst, x, y, dstpitch); \
+    } \
+    uintptr_t ogx_fast_conv_##reader##_##texel = (uintptr_t)fast_conv_##reader##_##texel;
+
+/* Fast conversions marked by a star are enabled by default */
+DEFINE_FAST_CONVERSION(RGBA, I8)
+DEFINE_FAST_CONVERSION(RGBA, A8)
+DEFINE_FAST_CONVERSION(RGBA, IA8)
+DEFINE_FAST_CONVERSION(RGBA, RGB565)
+DEFINE_FAST_CONVERSION(RGBA, RGBA8) // *
+DEFINE_FAST_CONVERSION(RGB, I8)
+DEFINE_FAST_CONVERSION(RGB, IA8)
+DEFINE_FAST_CONVERSION(RGB, RGB565) // *
+DEFINE_FAST_CONVERSION(RGB, RGBA8)
+DEFINE_FAST_CONVERSION(LA, I8)
+DEFINE_FAST_CONVERSION(LA, A8)
+DEFINE_FAST_CONVERSION(LA, IA8)
+DEFINE_FAST_CONVERSION(Intensity, I8) // *
+DEFINE_FAST_CONVERSION(Alpha, A8)
+
+void ogx_register_tex_conversion(GLenum format, GLenum internal_format,
+                                 uintptr_t converter)
+{
+    uint8_t gx_format = _ogx_gl_format_to_gx(internal_format);
+    int i;
+    for (i = 0; i < MAX_FAST_CONVERSIONS; i++) {
+        if (s_registered_conversions[i].gl_format == 0) break;
+    }
+
+    if (i >= MAX_FAST_CONVERSIONS) {
+        /* Nothing especially bad happens, we'll just use the slower
+         * conversion. But print a warning in any case. */
+        warning("ogx_register_tex_conversion: reached max num of entries");
+        return;
+    }
+
+    FastConversion &c = s_registered_conversions[i];
+    c.gl_format = format;
+    c.gx_format = gx_format;
+    c.conv.id = converter;
 }

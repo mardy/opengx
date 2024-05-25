@@ -40,6 +40,36 @@ extern "C" {
 
 void ogx_initialize(void);
 
+/* This function can be called to register an optimized converter for the
+ * texture data (used in glTex*Image* functions).
+ *
+ * The "format" and "internal_format" parameter corresponds to the homonymous
+ * parameters passed to the glTexImage2D() function, and the "converter"
+ * parameter must be one of the ogx_fast_conv_* variables declared below.
+ *
+ * The following fast converters are already enabled by default:
+ * - ogx_fast_conv_RGB_RGB565;
+ * - ogx_fast_conv_RGBA_RGBA8;
+ * - ogx_fast_conv_Intensity_I8;
+ */
+void ogx_register_tex_conversion(GLenum format, GLenum internal_format,
+                                 uintptr_t converter);
+
+extern uintptr_t ogx_fast_conv_RGBA_I8;
+extern uintptr_t ogx_fast_conv_RGBA_A8;
+extern uintptr_t ogx_fast_conv_RGBA_IA8;
+extern uintptr_t ogx_fast_conv_RGBA_RGB565;
+extern uintptr_t ogx_fast_conv_RGBA_RGBA8;
+extern uintptr_t ogx_fast_conv_RGB_I8;
+extern uintptr_t ogx_fast_conv_RGB_IA8;
+extern uintptr_t ogx_fast_conv_RGB_RGB565;
+extern uintptr_t ogx_fast_conv_RGB_RGBA8;
+extern uintptr_t ogx_fast_conv_LA_I8;
+extern uintptr_t ogx_fast_conv_LA_A8;
+extern uintptr_t ogx_fast_conv_LA_IA8;
+extern uintptr_t ogx_fast_conv_Intensity_I8;
+extern uintptr_t ogx_fast_conv_Alpha_A8;
+
 #ifdef __cplusplus
 } // extern C
 #endif
