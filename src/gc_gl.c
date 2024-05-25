@@ -1795,6 +1795,14 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
         GX_SetTevColorIn(stage, raster_color, GX_CC_ZERO, GX_CC_ZERO, GX_CC_TEXC);
         GX_SetTevAlphaIn(stage, raster_alpha, GX_CA_ZERO, GX_CA_ZERO, GX_CA_TEXA);
         break;
+    case GL_BLEND:
+        /* In data: c: Texture Color, a: raster value, b: tex env
+         * Operation: a(1-c)+b*c
+         * Until we implement GL_TEXTURE_ENV_COLOR, use white (GX_CC_ONE) for
+         * the tex env color. */
+        GX_SetTevColorIn(stage, raster_color, GX_CC_ONE, GX_CC_TEXC, GX_CC_ZERO);
+        GX_SetTevAlphaIn(stage, GX_CA_ZERO, raster_alpha, GX_CA_TEXA, GX_CA_ZERO);
+        break;
     case GL_MODULATE:
     default:
         // In data: c: Texture Color b: raster value, Operation: b*c
