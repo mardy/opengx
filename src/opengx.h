@@ -32,6 +32,16 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OPENGX_H
 #define OPENGX_H
 
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void ogx_initialize(void);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_H */
