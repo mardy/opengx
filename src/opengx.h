@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OPENGX_H
 #define OPENGX_H
 
+#include <GL/gl.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
