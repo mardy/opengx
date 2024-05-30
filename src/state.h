@@ -107,6 +107,7 @@ typedef struct glparams_
             unsigned dirty_matrices : 1;
             unsigned dirty_lighting : 1;
             unsigned dirty_material : 1;
+            unsigned dirty_cull : 1;
         } bits;
         unsigned int all;
     } dirty;

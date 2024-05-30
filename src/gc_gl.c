@@ -155,6 +155,31 @@ static void get_projection_info(u8 *type, float *near, float *far)
     *far = B / A;
 }
 
+static void setup_cull_mode()
+{
+    if (glparamstate.cullenabled) {
+        switch (glparamstate.glcullmode) {
+        case GL_FRONT:
+            if (glparamstate.frontcw)
+                GX_SetCullMode(GX_CULL_FRONT);
+            else
+                GX_SetCullMode(GX_CULL_BACK);
+            break;
+        case GL_BACK:
+            if (glparamstate.frontcw)
+                GX_SetCullMode(GX_CULL_BACK);
+            else
+                GX_SetCullMode(GX_CULL_FRONT);
+            break;
+        case GL_FRONT_AND_BACK:
+            GX_SetCullMode(GX_CULL_ALL);
+            break;
+        }
+    } else {
+        GX_SetCullMode(GX_CULL_NONE);
+    }
+}
+
 void ogx_initialize()
 {
     const char *log_env = getenv("OPENGX_DEBUG");
@@ -188,7 +213,6 @@ void ogx_initialize()
     glparamstate.glcullmode = GL_BACK;
     glparamstate.cullenabled = 0;
     glparamstate.frontcw = 0; // By default front is CCW
-    glDisable(GL_CULL_FACE);
     glparamstate.texture_env_mode = GL_MODULATE;
 
     glparamstate.cur_proj_mat = -1;
@@ -337,24 +361,8 @@ void glEnable(GLenum cap)
         glparamstate.lighting.color_material_enabled = 1;
         break;
     case GL_CULL_FACE:
-        switch (glparamstate.glcullmode) {
-        case GL_FRONT:
-            if (glparamstate.frontcw)
-                GX_SetCullMode(GX_CULL_FRONT);
-            else
-                GX_SetCullMode(GX_CULL_BACK);
-            break;
-        case GL_BACK:
-            if (glparamstate.frontcw)
-                GX_SetCullMode(GX_CULL_BACK);
-            else
-                GX_SetCullMode(GX_CULL_FRONT);
-            break;
-        case GL_FRONT_AND_BACK:
-            GX_SetCullMode(GX_CULL_ALL);
-            break;
-        };
         glparamstate.cullenabled = 1;
+        glparamstate.dirty.bits.dirty_cull = 1;
         break;
     case GL_BLEND:
         glparamstate.blendenabled = 1;
@@ -395,8 +403,8 @@ void glDisable(GLenum cap)
         glparamstate.lighting.color_material_enabled = 0;
         break;
     case GL_CULL_FACE:
-        GX_SetCullMode(GX_CULL_NONE);
         glparamstate.cullenabled = 0;
+        glparamstate.dirty.bits.dirty_cull = 1;
         break;
     case GL_BLEND:
         glparamstate.blendenabled = 0;
@@ -595,10 +603,7 @@ void glColorMaterial(GLenum face, GLenum mode)
 void glCullFace(GLenum mode)
 {
     glparamstate.glcullmode = mode;
-    if (glparamstate.cullenabled)
-        glEnable(GL_CULL_FACE);
-    else
-        glDisable(GL_CULL_FACE);
+    glparamstate.dirty.bits.dirty_cull = 1;
 }
 
 void glBegin(GLenum mode)
@@ -1987,6 +1992,10 @@ void _ogx_apply_state()
             GX_SetBlendMode(GX_BM_BLEND, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
         else
             GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
+    }
+
+    if (glparamstate.dirty.bits.dirty_cull) {
+        setup_cull_mode();
     }
 
     // Matrix stuff
