@@ -805,9 +805,17 @@ void glPopMatrix(void)
 
     switch (glparamstate.matrixmode) {
     case 0:
+        if (glparamstate.cur_proj_mat < 0) {
+            set_error(GL_STACK_UNDERFLOW);
+            return;
+        }
         memcpy(glparamstate.projection_matrix, glparamstate.projection_stack[glparamstate.cur_proj_mat], sizeof(Mtx44));
         glparamstate.cur_proj_mat--;
     case 1:
+        if (glparamstate.cur_modv_mat < 0) {
+            set_error(GL_STACK_UNDERFLOW);
+            return;
+        }
         memcpy(glparamstate.modelview_matrix, glparamstate.modelview_stack[glparamstate.cur_modv_mat], sizeof(Mtx44));
         glparamstate.cur_modv_mat--;
     default:
@@ -821,10 +829,18 @@ void glPushMatrix(void)
 
     switch (glparamstate.matrixmode) {
     case 0:
+        if (glparamstate.cur_proj_mat == MAX_PROJ_STACK - 1) {
+            set_error(GL_STACK_OVERFLOW);
+            return;
+        }
         glparamstate.cur_proj_mat++;
         memcpy(glparamstate.projection_stack[glparamstate.cur_proj_mat], glparamstate.projection_matrix, sizeof(Mtx44));
         break;
     case 1:
+        if (glparamstate.cur_modv_mat == MAX_MODV_STACK - 1) {
+            set_error(GL_STACK_OVERFLOW);
+            return;
+        }
         glparamstate.cur_modv_mat++;
         memcpy(glparamstate.modelview_stack[glparamstate.cur_modv_mat], glparamstate.modelview_matrix, sizeof(Mtx44));
         break;
