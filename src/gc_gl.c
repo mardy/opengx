@@ -91,28 +91,29 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 
 /* OpenGL's projection matrix transform the scene into a clip space where all
  * the coordinates lie in the range [-1, 1]. Nintendo's GX, however, for the z
- * coordinates expects a range of [-1, 0], so we need to transform the z
- * coordinates accordingly: they must be halved (which gives us a range of
- * [-0.5, 0.5] and translated back by 0.5 (to get [-1, 0]). The adjustment
- * matrix below does exactly that: it's a matrix that scales and translates the
- * z coordinate as we just described. */
-static const Mtx44 s_projection_adj = {
-    { 1.0, 0.0, 0.0, 0.0 },
-    { 0.0, 1.0, 0.0, 0.0 },
-    { 0.0, 0.0, 0.5, -0.5 },
-    { 0.0, 0.0, 0.0, 1.0 },
-};
-
+ * coordinates expects a range of [-1, 0], so the projection matrix needs to be
+ * adjusted. We do that by extracting the near and far planes from the GL
+ * projection matrix and by recomputing the related two matrix entries
+ * according to the formulas used by guFrustum() and guOrtho(). */
 #define PROJECTION_UPDATE                                           \
     {                                                               \
         Mtx44 proj;                                                 \
-        guMtx44Concat(s_projection_adj,                             \
-                      glparamstate.projection_matrix,               \
-                      proj);                                        \
-        if (glparamstate.projection_matrix[3][3] != 0)              \
+        u8 type;                                                    \
+        float near, far;                                            \
+        get_projection_info(&type, &near, &far);                    \
+        for (int i = 0; i < 4; i++)                                 \
+            for (int j = 0; j < 4; j++)                             \
+                proj[i][j] = glparamstate.projection_matrix[j][i];  \
+        float tmp = 1.0f / (far - near);                            \
+        if (glparamstate.projection_matrix[3][3] != 0) {            \
+            proj[2][2] = -tmp;                                      \
+            proj[2][3] = -far * tmp;                                \
             GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);            \
-        else                                                        \
+        } else {                                                    \
+            proj[2][2] = -near * tmp;                               \
+            proj[2][3] = -near * far * tmp;                         \
             GX_LoadProjectionMtx(proj, GX_PERSPECTIVE);             \
+        }                                                           \
     }
 
 #define NORMAL_UPDATE                                                  \
@@ -129,30 +130,23 @@ static const Mtx44 s_projection_adj = {
     }
 
 /* Deduce the projection type (perspective vs orthogonal) and the values of the
- * near and far clipping plane from the projection matrix.
- * Note that the formulas for computing "near" and "far" are only valid for
- * matrices created by opengx or by the gu* family of GX functions. OpenGL
- * books use different formulas.
- */
+ * near and far clipping plane from the projection matrix. */
 static void get_projection_info(u8 *type, float *near, float *far)
 {
-    Mtx44 proj;
     float A, B;
 
-    guMtx44Concat(s_projection_adj,
-                  glparamstate.projection_matrix,
-                  proj);
-    A = proj[2][2];
-    B = proj[2][3];
+    A = glparamstate.projection_matrix[2][2];
+    /* Note that the matrix is transposed: this is row 2, column 3 */
+    B = glparamstate.projection_matrix[3][2];
 
-    if (proj[3][3] == 0) {
+    if (glparamstate.projection_matrix[3][3] == 0) {
         *type = GX_PERSPECTIVE;
         *near = B / (A - 1.0);
     } else {
         *type = GX_ORTHOGRAPHIC;
         *near = (B + 1.0) / A;
     }
-    *far = B / A;
+    *far = B / (A + 1.0);
 }
 
 void ogx_initialize()
