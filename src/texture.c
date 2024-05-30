@@ -369,13 +369,15 @@ void glBindTexture(GLenum target, GLuint texture)
 
     HANDLE_CALL_LIST(BIND_TEXTURE, target, texture);
 
-    // If the texture has been initialized (data!=0) then load it to GX reg 0
-    if (TEXTURE_IS_RESERVED(texture_list[texture])) {
-        glparamstate.glcurtex = texture;
-
-        if (TEXTURE_IS_USED(texture_list[texture]))
-            GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
+    if (!TEXTURE_IS_RESERVED(texture_list[texture])) {
+        TEXTURE_RESERVE(texture_list[texture]);
     }
+
+    // If the texture has been initialized (data!=0) then load it to GX reg 0
+    glparamstate.glcurtex = texture;
+
+    if (TEXTURE_IS_USED(texture_list[texture]))
+        GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
 }
 
 void glDeleteTextures(GLsizei n, const GLuint *textures)
