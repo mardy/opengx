@@ -1841,7 +1841,7 @@ static void setup_render_stages(int texen)
 
                 if (glparamstate.lighting.color_material_mode == GL_AMBIENT ||
                     glparamstate.lighting.color_material_mode == GL_AMBIENT_AND_DIFFUSE) {
-                    acol = gxcol_cpy_mulfv(ccol, glparamstate.lighting.globalambient);
+                    acol = ccol;
                     ambient_set = true;
                 }
 
