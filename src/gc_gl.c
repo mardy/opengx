@@ -146,7 +146,11 @@ static void get_projection_info(u8 *type, float *near, float *far)
         *type = GX_ORTHOGRAPHIC;
         *near = (B + 1.0) / A;
     }
-    *far = B / (A + 1.0);
+    if (A != -1.0) {
+        *far = B / (A + 1.0);
+    } else {
+        *far = 1.0;
+    }
 }
 
 static void setup_cull_mode()
