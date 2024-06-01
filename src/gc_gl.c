@@ -1360,15 +1360,16 @@ void glEnableClientState(GLenum cap)
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    // TODO: support non float types
     glparamstate.vertex_array = (float *)pointer;
-    glparamstate.vertex_stride = stride;
+    glparamstate.vertex_stride = stride / sizeof(float);
     if (stride == 0)
         glparamstate.vertex_stride = size;
 }
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     glparamstate.normal_array = (float *)pointer;
-    glparamstate.normal_stride = stride;
+    glparamstate.normal_stride = stride / sizeof(float);
     if (stride == 0)
         glparamstate.normal_stride = 3;
 }
@@ -1377,7 +1378,7 @@ void glColorPointer(GLint size, GLenum type,
                     GLsizei stride, const GLvoid *pointer)
 {
     glparamstate.color_array = (float *)pointer;
-    glparamstate.color_stride = stride;
+    glparamstate.color_stride = stride / sizeof(float);
     if (stride == 0)
         glparamstate.color_stride = size;
 }
@@ -1385,7 +1386,7 @@ void glColorPointer(GLint size, GLenum type,
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     glparamstate.texcoord_array = (float *)pointer;
-    glparamstate.texcoord_stride = stride;
+    glparamstate.texcoord_stride = stride / sizeof(float);
     if (stride == 0)
         glparamstate.texcoord_stride = size;
 }
