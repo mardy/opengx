@@ -70,11 +70,8 @@ typedef struct
 static const GLubyte gl_null_string[1] = { 0 };
 char _ogx_log_level = 0;
 
-static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
-                                        int count, bool loop);
-static void draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count, bool loop);
-static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color,
-                                int count, int ne, int color_provide, int texen, bool loop);
+static void draw_arrays_general(int first, int count, int ne,
+                                int color_provide, int texen, bool loop);
 
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
@@ -755,18 +752,22 @@ void glEnd()
 {
     struct client_state cs_backup = glparamstate.cs;
     float *base = &glparamstate.imm_mode.current_vertices[0][0];
-    glparamstate.texcoord_array = base;
-    glparamstate.color_array = glparamstate.texcoord_array + 2;
-    glparamstate.normal_array = glparamstate.color_array + 4;
-    glparamstate.vertex_array = glparamstate.normal_array + 3;
+    int stride = 12 * sizeof(float);
+    _ogx_array_reader_init(&glparamstate.texcoord_array, base, GL_FLOAT, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.texcoord_array, 2);
+    base += 2;
+    _ogx_array_reader_init(&glparamstate.color_array, base, GL_FLOAT, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.color_array, 4);
+    base += 4;
+    _ogx_array_reader_init(&glparamstate.normal_array, base, GL_FLOAT, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.normal_array, 3);
+    base += 3;
+    _ogx_array_reader_init(&glparamstate.vertex_array, base, GL_FLOAT, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.vertex_array, 3);
     glparamstate.cs.texcoord_enabled = 1;
     glparamstate.cs.color_enabled = glparamstate.imm_mode.has_color;
     glparamstate.cs.normal_enabled = 1;
     glparamstate.cs.vertex_enabled = 1;
-    glparamstate.color_stride = 12;
-    glparamstate.normal_stride = 12;
-    glparamstate.vertex_stride = 12;
-    glparamstate.texcoord_stride = 12;
     glDrawArrays(glparamstate.imm_mode.prim_type, 0, glparamstate.imm_mode.current_numverts);
     glparamstate.cs = cs_backup;
     glparamstate.imm_mode.in_gl_begin = 0;
@@ -1493,43 +1494,39 @@ void glEnableClientState(GLenum cap)
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    // TODO: support non float types
-    glparamstate.vertex_array = (float *)pointer;
-    glparamstate.vertex_stride = stride / sizeof(float);
-    if (stride == 0)
-        glparamstate.vertex_stride = size;
+    _ogx_array_reader_init(&glparamstate.vertex_array,
+                           pointer, type, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.vertex_array, size);
 }
+
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    glparamstate.normal_array = (float *)pointer;
-    glparamstate.normal_stride = stride / sizeof(float);
-    if (stride == 0)
-        glparamstate.normal_stride = 3;
+    _ogx_array_reader_init(&glparamstate.normal_array,
+                           pointer, type, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.normal_array, 3);
 }
 
 void glColorPointer(GLint size, GLenum type,
                     GLsizei stride, const GLvoid *pointer)
 {
-    glparamstate.color_array = (float *)pointer;
-    glparamstate.color_stride = stride / sizeof(float);
-    if (stride == 0)
-        glparamstate.color_stride = size;
+    _ogx_array_reader_init(&glparamstate.color_array,
+                           pointer, type, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.color_array, size);
 }
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    glparamstate.texcoord_array = (float *)pointer;
-    glparamstate.texcoord_stride = stride / sizeof(float);
-    if (stride == 0)
-        glparamstate.texcoord_stride = size;
+    _ogx_array_reader_init(&glparamstate.texcoord_array,
+                           pointer, type, stride);
+    _ogx_array_reader_set_num_elements(&glparamstate.texcoord_array, size);
 }
 
 void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 {
-    glparamstate.vertex_array = (float *)pointer;
-    glparamstate.normal_array = (float *)pointer;
-    glparamstate.texcoord_array = (float *)pointer;
-    glparamstate.color_array = (float *)pointer;
+    const float *vertex_array = pointer;
+    const float *normal_array = pointer;
+    const float *texcoord_array = pointer;
+    const float *color_array = pointer;
 
     glparamstate.cs.index_enabled = 0;
     glparamstate.cs.normal_enabled = 0;
@@ -1551,13 +1548,13 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         glparamstate.cs.vertex_enabled = 1;
         glparamstate.cs.normal_enabled = 1;
         cstride = 6;
-        glparamstate.vertex_array += 3;
+        vertex_array += 3;
         break;
     case GL_T2F_V3F:
         glparamstate.cs.vertex_enabled = 1;
         glparamstate.cs.texcoord_enabled = 1;
         cstride = 5;
-        glparamstate.vertex_array += 2;
+        vertex_array += 2;
         break;
     case GL_T2F_N3F_V3F:
         glparamstate.cs.vertex_enabled = 1;
@@ -1565,8 +1562,8 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         glparamstate.cs.texcoord_enabled = 1;
         cstride = 8;
 
-        glparamstate.vertex_array += 5;
-        glparamstate.normal_array += 2;
+        vertex_array += 5;
+        normal_array += 2;
         break;
 
     case GL_C4F_N3F_V3F:
@@ -1575,15 +1572,15 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         glparamstate.cs.color_enabled = 1;
         cstride = 10;
 
-        glparamstate.vertex_array += 7;
-        glparamstate.normal_array += 4;
+        vertex_array += 7;
+        normal_array += 4;
         break;
     case GL_C3F_V3F:
         glparamstate.cs.vertex_enabled = 1;
         glparamstate.cs.color_enabled = 1;
         cstride = 6;
 
-        glparamstate.vertex_array += 3;
+        vertex_array += 3;
         break;
     case GL_T2F_C3F_V3F:
         glparamstate.cs.vertex_enabled = 1;
@@ -1591,8 +1588,8 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         glparamstate.cs.texcoord_enabled = 1;
         cstride = 8;
 
-        glparamstate.vertex_array += 5;
-        glparamstate.color_array += 2;
+        vertex_array += 5;
+        color_array += 2;
         break;
     case GL_T2F_C4F_N3F_V3F: // Complete type
         glparamstate.cs.vertex_enabled = 1;
@@ -1601,9 +1598,9 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         glparamstate.cs.texcoord_enabled = 1;
         cstride = 12;
 
-        glparamstate.vertex_array += 9;
-        glparamstate.normal_array += 6;
-        glparamstate.color_array += 2;
+        vertex_array += 9;
+        normal_array += 6;
+        color_array += 2;
         break;
 
     case GL_C4UB_V2F:
@@ -1615,14 +1612,15 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
         return;
     }
 
-    // If the stride is 0, they're tighly packed
-    if (stride != 0)
-        cstride = stride;
-
-    glparamstate.color_stride = cstride;
-    glparamstate.normal_stride = cstride;
-    glparamstate.vertex_stride = cstride;
-    glparamstate.texcoord_stride = cstride;
+    if (stride == 0) stride = cstride * sizeof(float);
+    _ogx_array_reader_init(&glparamstate.vertex_array,
+                           vertex_array, GL_FLOAT, stride);
+    _ogx_array_reader_init(&glparamstate.normal_array,
+                           normal_array, GL_FLOAT, stride);
+    _ogx_array_reader_init(&glparamstate.texcoord_array,
+                           texcoord_array, GL_FLOAT, stride);
+    _ogx_array_reader_init(&glparamstate.color_array,
+                           color_array, GL_FLOAT, stride);
 }
 
 /*
@@ -2237,17 +2235,6 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
             color_provide = 1;
     }
 
-    // Create data pointers
-    float *ptr_pos = glparamstate.vertex_array;
-    float *ptr_texc = glparamstate.texcoord_array;
-    float *ptr_color = glparamstate.color_array;
-    float *ptr_normal = glparamstate.normal_array;
-
-    ptr_pos += (glparamstate.vertex_stride * first);
-    ptr_texc += (glparamstate.texcoord_stride * first);
-    ptr_color += (glparamstate.color_stride * first);
-    ptr_normal += (glparamstate.normal_stride * first);
-
     // Not using indices
     GX_ClearVtxDesc();
     if (glparamstate.cs.vertex_enabled)
@@ -2273,17 +2260,8 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     bool loop = (mode == GL_LINE_LOOP);
     GX_Begin(gxmode, GX_VTXFMT0, count + loop);
-
-    if (glparamstate.cs.normal_enabled && !glparamstate.cs.color_enabled) {
-        if (texen) {
-            draw_arrays_pos_normal_texc(ptr_pos, ptr_texc, ptr_normal, count, loop);
-        } else {
-            draw_arrays_pos_normal(ptr_pos, ptr_normal, count, loop);
-        }
-    } else {
-        draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
-                            count, glparamstate.cs.normal_enabled, color_provide, texen, loop);
-    }
+    draw_arrays_general(first, count, glparamstate.cs.normal_enabled,
+                        color_provide, texen, loop);
     GX_End();
 }
 
@@ -2343,101 +2321,61 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     int i;
     for (i = 0; i < count + loop; i++) {
         int index = read_index(indices, type, i % count);
-        float *ptr_pos = glparamstate.vertex_array + glparamstate.vertex_stride * index;
-        float *ptr_texc = glparamstate.texcoord_array + glparamstate.texcoord_stride * index;
-        float *ptr_color = glparamstate.color_array + glparamstate.color_stride * index;
-        float *ptr_normal = glparamstate.normal_array + glparamstate.normal_stride * index;
+        float value[4];
+        _ogx_array_reader_read_float(&glparamstate.vertex_array, index, value);
 
-        GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
+        GX_Position3f32(value[0], value[1], value[2]);
 
         if (glparamstate.cs.normal_enabled) {
-            GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
+            _ogx_array_reader_read_float(&glparamstate.normal_array, index, value);
+            GX_Normal3f32(value[0], value[1], value[2]);
         }
 
-        // If the data stream doesn't contain any color data just
-        // send the current color (the last glColor* call)
         if (color_provide) {
-            unsigned char arr[4] = { ptr_color[0] * 255.0f, ptr_color[1] * 255.0f, ptr_color[2] * 255.0f, ptr_color[3] * 255.0f };
+            _ogx_array_reader_read_float(&glparamstate.color_array, index, value);
+            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
             GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
             if (color_provide == 2)
                 GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
         }
 
         if (texen) {
-            GX_TexCoord2f32(ptr_texc[0], ptr_texc[1]);
+            _ogx_array_reader_read_float(&glparamstate.texcoord_array, index, value);
+            GX_TexCoord2f32(value[0], value[1]);
         }
     }
     GX_End();
 }
 
-static void draw_arrays_pos_normal_texc(float *ptr_pos, float *ptr_texc, float *ptr_normal,
-                                        int count, bool loop)
-{
-    int i;
-    float *pos = ptr_pos, *texc = ptr_texc, *normal = ptr_normal;
-    for (i = 0; i < count; i++) {
-        GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
-        ptr_pos += glparamstate.vertex_stride;
-
-        GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
-        ptr_normal += glparamstate.normal_stride;
-
-        GX_TexCoord2f32(ptr_texc[0], ptr_texc[1]);
-        ptr_texc += glparamstate.texcoord_stride;
-    }
-    if (loop) {
-        GX_Position3f32(pos[0], pos[1], pos[2]);
-        GX_Normal3f32(normal[0], normal[1], normal[2]);
-        GX_TexCoord2f32(texc[0], texc[1]);
-    }
-}
-
-static void draw_arrays_pos_normal(float *ptr_pos, float *ptr_normal, int count,
-                                   bool loop)
-{
-    int i;
-    float *pos = ptr_pos, *normal = ptr_normal;
-    for (i = 0; i < count; i++) {
-        GX_Position3f32(ptr_pos[0], ptr_pos[1], ptr_pos[2]);
-        ptr_pos += glparamstate.vertex_stride;
-
-        GX_Normal3f32(ptr_normal[0], ptr_normal[1], ptr_normal[2]);
-        ptr_normal += glparamstate.normal_stride;
-    }
-    if (loop) {
-        GX_Position3f32(pos[0], pos[1], pos[2]);
-        GX_Normal3f32(normal[0], normal[1], normal[2]);
-    }
-}
-
-static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_texc, float *ptr_color,
-                                int count, int ne, int color_provide, int texen, bool loop)
+static void draw_arrays_general(int first, int count, int ne,
+                                int color_provide, int texen, bool loop)
 {
 
     int i;
     for (i = 0; i < count + loop; i++) {
-        int j = i % count;
-        float *pos = ptr_pos + j * glparamstate.vertex_stride;
-        GX_Position3f32(pos[0], pos[1], pos[2]);
+        int j = i % count + first;
+        float value[4];
+        _ogx_array_reader_read_float(&glparamstate.vertex_array, j, value);
+        GX_Position3f32(value[0], value[1], value[2]);
 
         if (ne) {
-            float *normal = ptr_normal + j * glparamstate.normal_stride;
-            GX_Normal3f32(normal[0], normal[1], normal[2]);
+            _ogx_array_reader_read_float(&glparamstate.normal_array, j, value);
+            GX_Normal3f32(value[0], value[1], value[2]);
         }
 
         // If the data stream doesn't contain any color data just
         // send the current color (the last glColor* call)
         if (color_provide) {
-            float *color = ptr_color + j * glparamstate.color_stride;
-            unsigned char arr[4] = { color[0] * 255.0f, color[1] * 255.0f, color[2] * 255.0f, color[3] * 255.0f };
+            _ogx_array_reader_read_float(&glparamstate.color_array, j, value);
+            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
             GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
             if (color_provide == 2)
                 GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
         }
 
         if (texen) {
-            float *texc = ptr_texc + j * glparamstate.texcoord_stride;
-            GX_TexCoord2f32(texc[0], texc[1]);
+            _ogx_array_reader_read_float(&glparamstate.texcoord_array, j, value);
+            GX_TexCoord2f32(value[0], value[1]);
         }
     }
 }
