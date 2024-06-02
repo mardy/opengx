@@ -9,6 +9,8 @@ set(TARGET opengx)
 include(GNUInstallDirs)
 
 add_library(${TARGET} STATIC
+    src/arrays.cpp
+    src/arrays.h
     src/call_lists.c
     src/call_lists.h
     src/debug.h
