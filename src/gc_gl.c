@@ -774,6 +774,10 @@ void glEnd()
 
 void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
 {
+    glparamstate.viewport[0] = x;
+    glparamstate.viewport[1] = y;
+    glparamstate.viewport[2] = width;
+    glparamstate.viewport[3] = height;
     GX_SetViewport(x, y, width, height, 0.0f, 1.0f);
     GX_SetScissor(x, y, width, height);
 }
@@ -2567,6 +2571,9 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_UNPACK_ALIGNMENT:
         *params = glparamstate.unpack_alignment;
         break;
+    case GL_VIEWPORT:
+        memcpy(params, glparamstate.viewport, 4 * sizeof(int));
+        return;
     default:
         return;
     };

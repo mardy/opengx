@@ -71,6 +71,8 @@ typedef struct glparams_
     float texture_object_plane_t[4];
     int cur_modv_mat, cur_proj_mat;
 
+    int viewport[4];
+
     unsigned char srcblend, dstblend;
     unsigned char blendenabled;
     unsigned char zwrite, ztest, zfunc;
