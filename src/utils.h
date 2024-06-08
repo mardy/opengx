@@ -203,4 +203,7 @@ static inline int read_index(const GLvoid *indices, GLenum type, int i)
     }
 }
 
+/* Set up the matrices for 2D pixel-perfect drawing */
+void _ogx_setup_2D_projection(void);
+
 #endif /* OGX_UTILS_H */

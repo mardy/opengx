@@ -223,6 +223,11 @@ void ogx_initialize()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    /* Load the identity matrix into GX_PNMTX0 */
+    Mtx mv;
+    guMtxIdentity(mv);
+    GX_LoadPosMtxImm(mv, GX_PNMTX0);
+
     glparamstate.imm_mode.current_color[0] = 1.0f; // Default imm data, could be wrong
     glparamstate.imm_mode.current_color[1] = 1.0f;
     glparamstate.imm_mode.current_color[2] = 1.0f;
@@ -348,6 +353,24 @@ void ogx_initialize()
     // Mark all the hardware data as dirty, so it will be recalculated
     // and uploaded again to the hardware
     glparamstate.dirty.all = ~0;
+}
+
+void _ogx_setup_2D_projection()
+{
+    /* GX_PNMTX0 is fixed to be the identity matrix */
+    GX_SetCurrentMtx(GX_PNMTX0);
+
+    Mtx44 proj;
+    /* The 0.5f is to center the drawing into the pixels. */
+    float left = glparamstate.viewport[0] + 0.5f;
+    float top = glparamstate.viewport[1] + 0.5f;
+    guOrtho(proj,
+            top, top + (glparamstate.viewport[3] - 1),
+            left, left + (glparamstate.viewport[2] - 1),
+            0, 1);
+    GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
+
+    glparamstate.dirty.bits.dirty_matrices = 1;
 }
 
 void glEnable(GLenum cap)
@@ -1105,8 +1128,6 @@ void glClearDepth(GLclampd depth)
 // and the desired color
 void glClear(GLbitfield mask)
 {
-    // Tweak the Z value to avoid floating point errors. dpeth goes from 0.001 to 0.998
-    float depth = (0.998f * glparamstate.clearz) + 0.001f;
     if (mask & GL_DEPTH_BUFFER_BIT)
         GX_SetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
     else
@@ -1120,25 +1141,9 @@ void glClear(GLbitfield mask)
     GX_SetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_COPY);
     GX_SetCullMode(GX_CULL_NONE);
 
-    static float modl[3][4];
-    modl[0][0] = 1.0f;
-    modl[0][1] = 0.0f;
-    modl[0][2] = 0.0f;
-    modl[0][3] = 0.0f;
-    modl[1][0] = 0.0f;
-    modl[1][1] = 1.0f;
-    modl[1][2] = 0.0f;
-    modl[1][3] = 0.0f;
-    modl[2][0] = 0.0f;
-    modl[2][1] = 0.0f;
-    modl[2][2] = 1.0f;
-    modl[2][3] = 0.0f;
-    GX_LoadPosMtxImm(modl, GX_PNMTX3);
-    GX_SetCurrentMtx(GX_PNMTX3);
-
-    Mtx44 proj;
-    guOrtho(proj, -1, 1, -1, 1, -1, 1);
-    GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
+    _ogx_setup_2D_projection();
+    /* The far plane is exactly at 1.0 */
+    float depth = -glparamstate.clearz;
 
     GX_SetNumChans(1);
     GX_SetNumTevStages(1);
@@ -1161,13 +1166,13 @@ void glClear(GLbitfield mask)
     }
 
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
-    GX_Position3f32(-1, -1, -depth);
+    GX_Position3f32(0, 0, depth);
     GX_Color4u8(glparamstate.clear_color.r, glparamstate.clear_color.g, glparamstate.clear_color.b, glparamstate.clear_color.a);
-    GX_Position3f32(1, -1, -depth);
+    GX_Position3f32(0, glparamstate.viewport[3], depth);
     GX_Color4u8(glparamstate.clear_color.r, glparamstate.clear_color.g, glparamstate.clear_color.b, glparamstate.clear_color.a);
-    GX_Position3f32(1, 1, -depth);
+    GX_Position3f32(glparamstate.viewport[2], glparamstate.viewport[3], depth);
     GX_Color4u8(glparamstate.clear_color.r, glparamstate.clear_color.g, glparamstate.clear_color.b, glparamstate.clear_color.a);
-    GX_Position3f32(-1, 1, -depth);
+    GX_Position3f32(glparamstate.viewport[2], 0, depth);
     GX_Color4u8(glparamstate.clear_color.r, glparamstate.clear_color.g, glparamstate.clear_color.b, glparamstate.clear_color.a);
     GX_End();
 
