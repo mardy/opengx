@@ -40,6 +40,16 @@ extern "C" {
 
 void ogx_initialize(void);
 
+/* The display integration library (SDL, GLUT, etc.) should call this function
+ * before copying the EFB to the XFB (and optionally, drawing a cursor). The
+ * opengx library might need to restore the EFB (in case it was configured into
+ * some special rendering mode); if this function returns a negative number,
+ * then the integration library should not proceed with the swap buffers
+ * operation. This will typically happen if the GL rendering mode has been set
+ * to something other than GL_RENDER.
+ */
+int ogx_prepare_swap_buffers(void);
+
 /* This function can be called to register an optimized converter for the
  * texture data (used in glTex*Image* functions).
  *

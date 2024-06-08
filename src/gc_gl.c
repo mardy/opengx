@@ -178,6 +178,11 @@ static void setup_cull_mode()
     }
 }
 
+int ogx_prepare_swap_buffers()
+{
+    return 0;
+}
+
 void ogx_initialize()
 {
     const char *log_env = getenv("OPENGX_DEBUG");
