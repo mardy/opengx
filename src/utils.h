@@ -220,4 +220,7 @@ static inline void set_gx_mtx_row(int row, Mtx m,
     m[row][3] = c3;
 }
 
+/* Set up the matrices for 2D pixel-perfect drawing */
+void _ogx_setup_2D_projection(void);
+
 #endif /* OGX_UTILS_H */
