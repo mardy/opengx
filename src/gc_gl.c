@@ -141,15 +141,16 @@ static void get_projection_info(u8 *type, float *near, float *far)
 
     if (glparamstate.projection_matrix[3][3] == 0) {
         *type = GX_PERSPECTIVE;
-        *near = B / (A - 1.0);
+        *near = B / (A - 1.0f);
+        if (A != -1.0f) {
+            *far = B / (A + 1.0f);
+        } else {
+            *far = 1.0f;
+        }
     } else {
         *type = GX_ORTHOGRAPHIC;
-        *near = (B + 1.0) / A;
-    }
-    if (A != -1.0) {
-        *far = B / (A + 1.0);
-    } else {
-        *far = 1.0;
+        *near = (B + 1.0f) / A;
+        *far = (B - 1.0f) / A;
     }
 }
 
