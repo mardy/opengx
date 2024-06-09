@@ -40,6 +40,7 @@ extern "C" {
 #endif
 
 void ogx_initialize(void);
+void *ogx_get_proc_address(const char *proc);
 
 /* The display integration library (SDL, GLUT, etc.) should call this function
  * before copying the EFB to the XFB (and optionally, drawing a cursor). The

@@ -14,6 +14,7 @@ add_library(${TARGET} STATIC
     src/call_lists.c
     src/call_lists.h
     src/debug.h
+    src/functions.c
     src/gc_gl.c
     src/image_DXT.c
     src/image_DXT.h
