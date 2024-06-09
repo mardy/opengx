@@ -29,6 +29,7 @@ add_library(${TARGET} STATIC
     src/opengx.h
     src/pixels.cpp
     src/pixels.h
+    src/selection.c
     src/state.h
     src/texture.c
     src/utils.h
