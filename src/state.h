@@ -46,6 +46,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define NUM_VERTS_IM   64  // Maximum number of vertices that can be inside a glBegin/End
 #define MAX_LIGHTS     4   // Max num lights
 #define MAX_GX_LIGHTS  8
+#define MAX_NAME_STACK_DEPTH 256 /* 64 is the minimum required */
 
 typedef float VertexData[12];
 
@@ -71,9 +72,17 @@ typedef struct glparams_
     unsigned char frontcw, cullenabled;
     uint16_t texture_env_mode;
     GLenum glcullmode;
+    GLenum render_mode;
     int glcurtex;
     GXColor clear_color;
     float clearz;
+
+    GLuint *name_stack;
+    GLuint *select_buffer;
+    uint16_t name_stack_depth;
+    uint16_t select_buffer_size;
+    int16_t select_buffer_offset; /* negative if overflow occurred */
+    uint16_t hit_count;
 
     void *index_array;
     OgxArrayReader vertex_array, texcoord_array, normal_array, color_array;

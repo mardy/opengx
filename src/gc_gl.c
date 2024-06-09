@@ -48,6 +48,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "call_lists.h"
 #include "debug.h"
 #include "opengx.h"
+#include "selection.h"
 #include "state.h"
 #include "utils.h"
 
@@ -178,7 +179,7 @@ static void setup_cull_mode()
 
 int ogx_prepare_swap_buffers()
 {
-    return 0;
+    return glparamstate.render_mode == GL_RENDER ? 0 : -1;
 }
 
 void ogx_initialize()
@@ -212,6 +213,7 @@ void ogx_initialize()
     glDisable(GL_TEXTURE_2D);
 
     glparamstate.glcullmode = GL_BACK;
+    glparamstate.render_mode = GL_RENDER;
     glparamstate.cullenabled = 0;
     glparamstate.frontcw = 0; // By default front is CCW
     glparamstate.texture_env_mode = GL_MODULATE;
@@ -1128,6 +1130,10 @@ void glClearDepth(GLclampd depth)
 // and the desired color
 void glClear(GLbitfield mask)
 {
+    if (glparamstate.render_mode == GL_SELECT) {
+        return;
+    }
+
     if (mask & GL_DEPTH_BUFFER_BIT)
         GX_SetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
     else
@@ -1218,6 +1224,23 @@ void glDepthMask(GLboolean flag)
     else
         glparamstate.zwrite = GX_TRUE;
     glparamstate.dirty.bits.dirty_z = 1;
+}
+
+GLint glRenderMode(GLenum mode)
+{
+    int hit_count;
+
+    switch (mode) {
+    case GL_RENDER:
+    case GL_SELECT:
+        hit_count = _ogx_selection_mode_changing(mode);
+        break;
+    default:
+        warning("Unsupported render mode 0x%04x", mode);
+        return 0;
+    }
+    glparamstate.render_mode = mode;
+    return hit_count;
 }
 
 GLenum glGetError(void)
@@ -2303,8 +2326,17 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_PROJECTION_STACK_DEPTH:
         *params = MAX_PROJ_STACK;
         return;
+    case GL_MAX_NAME_STACK_DEPTH:
+        *params = MAX_NAME_STACK_DEPTH;
+        return;
+    case GL_NAME_STACK_DEPTH:
+        *params = glparamstate.name_stack_depth;
+        return;
     case GL_VIEWPORT:
         memcpy(params, glparamstate.viewport, 4 * sizeof(int));
+        return;
+    case GL_RENDER_MODE:
+        *params = glparamstate.render_mode;
         return;
     default:
         return;
