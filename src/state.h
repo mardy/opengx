@@ -96,6 +96,22 @@ typedef struct glparams_
     } cs;
 
     char texture_enabled;
+    unsigned pack_swap_bytes: 1;
+    unsigned pack_lsb_first: 1;
+    unsigned unpack_swap_bytes: 1;
+    unsigned unpack_lsb_first: 1;
+    uint8_t pack_skip_pixels;
+    uint8_t pack_skip_rows;
+    uint8_t pack_skip_images;
+    uint8_t pack_alignment;
+    uint8_t unpack_skip_pixels;
+    uint8_t unpack_skip_rows;
+    uint8_t unpack_skip_images;
+    uint8_t unpack_alignment;
+    uint16_t pack_row_length;
+    uint16_t pack_image_height;
+    uint16_t unpack_row_length;
+    uint16_t unpack_image_height;
 
     struct imm_mode
     {
