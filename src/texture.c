@@ -93,8 +93,7 @@ static int calc_original_size(int level, int s)
 // Given w,h,level,and bpp, returns the offset to the mipmap at level "level"
 static uint32_t calc_mipmap_offset(int level, int w, int h, uint32_t format)
 {
-    return level > 0 ?
-        GX_GetTexBufferSize(w, h, format, GX_TRUE, level - 1) : 0;
+    return GX_GetTexBufferSize(w, h, format, GX_TRUE, level);
 }
 
 static unsigned char gcgl_texwrap_conv(GLint param)
