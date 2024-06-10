@@ -196,7 +196,7 @@ static void update_texture(const void *data, int level, GLenum format, GLenum ty
         uint32_t offset = calc_mipmap_offset(level, ti->width, ti->height, ti->format);
         dst_addr += offset;
 
-        int dstpitch = _ogx_pitch_for_width(ti->format, ti->width);
+        int dstpitch = _ogx_pitch_for_width(ti->format, ti->width >> level);
         _ogx_bytes_to_texture(data, format, type, width, height,
                               dst_addr, ti->format, x, y, dstpitch);
         /* GX_TF_A8 is not supported by Dolphin and it's not properly handed by
