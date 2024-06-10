@@ -315,21 +315,18 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         // we are uploading a non-zero level, so we need to create a mipmap capable buffer
         // and copy the level zero texture
         uint32_t tsize = calc_memory(wi, he, ti.format);
-        unsigned char *tempbuf = malloc(tsize);
-        if (!tempbuf) {
+        unsigned char *oldbuf = ti.texels;
+
+        uint32_t required_size = calc_tex_size(wi, he, ti.format);
+        ti.texels = memalign(32, required_size);
+        if (!ti.texels) {
             warning("Failed to allocate memory for texture mipmap (%d)", errno);
             set_error(GL_OUT_OF_MEMORY);
             return;
         }
-        memcpy(tempbuf, ti.texels, tsize);
-        free(ti.texels);
 
-        uint32_t required_size = calc_tex_size(wi, he, ti.format);
-        ti.texels = memalign(32, required_size);
-        onelevel = 0;
-
-        memcpy(ti.texels, tempbuf, tsize);
-        free(tempbuf);
+        memcpy(ti.texels, oldbuf, tsize);
+        free(oldbuf);
     }
 
     update_texture(data, level, format, type, width, height,
