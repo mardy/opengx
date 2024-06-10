@@ -284,7 +284,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     texture_get_info(&currtex->texobj, &ti);
     ti.format = gx_format;
     ti.ud.d.is_reserved = 1;
-    char onelevel = ti.minlevel == 0.0;
+    char onelevel = ti.minlevel == 0 && ti.maxlevel == 0;
 
     // Check if the texture has changed its geometry and proceed to delete it
     // If the specified level is zero, create a onelevel texture to save memory
