@@ -245,6 +245,8 @@ void ogx_initialize()
     glparamstate.cs.color_enabled = 0;
 
     glparamstate.texture_enabled = 0;
+    glparamstate.pack_alignment = 4;
+    glparamstate.unpack_alignment = 4;
 
     // Set up lights default states
     glparamstate.lighting.enabled = 0;
@@ -602,6 +604,60 @@ void glColorMaterial(GLenum face, GLenum mode)
 {
     /* TODO: support the face parameter */
     glparamstate.lighting.color_material_mode = mode;
+}
+
+void glPixelStorei(GLenum pname, GLint param)
+{
+    switch (pname) {
+    case GL_PACK_SWAP_BYTES:
+        glparamstate.pack_swap_bytes = param;
+        break;
+    case GL_PACK_LSB_FIRST:
+        glparamstate.pack_lsb_first = param;
+        break;
+    case GL_PACK_ROW_LENGTH:
+        glparamstate.pack_row_length = param;
+        break;
+    case GL_PACK_IMAGE_HEIGHT:
+        glparamstate.pack_image_height = param;
+        break;
+    case GL_PACK_SKIP_ROWS:
+        glparamstate.pack_skip_rows = param;
+        break;
+    case GL_PACK_SKIP_PIXELS:
+        glparamstate.pack_skip_pixels = param;
+        break;
+    case GL_PACK_SKIP_IMAGES:
+        glparamstate.pack_skip_images = param;
+        break;
+    case GL_PACK_ALIGNMENT:
+        glparamstate.pack_alignment = param;
+        break;
+    case GL_UNPACK_SWAP_BYTES:
+        glparamstate.unpack_swap_bytes = param;
+        break;
+    case GL_UNPACK_LSB_FIRST:
+        glparamstate.unpack_lsb_first = param;
+        break;
+    case GL_UNPACK_ROW_LENGTH:
+        glparamstate.unpack_row_length = param;
+        break;
+    case GL_UNPACK_IMAGE_HEIGHT:
+        glparamstate.unpack_image_height = param;
+        break;
+    case GL_UNPACK_SKIP_ROWS:
+        glparamstate.unpack_skip_rows = param;
+        break;
+    case GL_UNPACK_SKIP_PIXELS:
+        glparamstate.unpack_skip_pixels = param;
+        break;
+    case GL_UNPACK_SKIP_IMAGES:
+        glparamstate.unpack_skip_images = param;
+        break;
+    case GL_UNPACK_ALIGNMENT:
+        glparamstate.unpack_alignment = param;
+        break;
+    }
 }
 
 void glCullFace(GLenum mode)
@@ -2356,6 +2412,54 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_PROJECTION_STACK_DEPTH:
         *params = MAX_PROJ_STACK;
         return;
+    case GL_PACK_SWAP_BYTES:
+        *params = glparamstate.pack_swap_bytes;
+        break;
+    case GL_PACK_LSB_FIRST:
+        *params = glparamstate.pack_lsb_first;
+        break;
+    case GL_PACK_ROW_LENGTH:
+        *params = glparamstate.pack_row_length;
+        break;
+    case GL_PACK_IMAGE_HEIGHT:
+        *params = glparamstate.pack_image_height;
+        break;
+    case GL_PACK_SKIP_ROWS:
+        *params = glparamstate.pack_skip_rows;
+        break;
+    case GL_PACK_SKIP_PIXELS:
+        *params = glparamstate.pack_skip_pixels;
+        break;
+    case GL_PACK_SKIP_IMAGES:
+        *params = glparamstate.pack_skip_images;
+        break;
+    case GL_PACK_ALIGNMENT:
+        *params = glparamstate.pack_alignment;
+        break;
+    case GL_UNPACK_SWAP_BYTES:
+        *params = glparamstate.unpack_swap_bytes;
+        break;
+    case GL_UNPACK_LSB_FIRST:
+        *params = glparamstate.unpack_lsb_first;
+        break;
+    case GL_UNPACK_ROW_LENGTH:
+        *params = glparamstate.unpack_row_length;
+        break;
+    case GL_UNPACK_IMAGE_HEIGHT:
+        *params = glparamstate.unpack_image_height;
+        break;
+    case GL_UNPACK_SKIP_ROWS:
+        *params = glparamstate.unpack_skip_rows;
+        break;
+    case GL_UNPACK_SKIP_PIXELS:
+        *params = glparamstate.unpack_skip_pixels;
+        break;
+    case GL_UNPACK_SKIP_IMAGES:
+        *params = glparamstate.unpack_skip_images;
+        break;
+    case GL_UNPACK_ALIGNMENT:
+        *params = glparamstate.unpack_alignment;
+        break;
     default:
         return;
     };
@@ -2402,7 +2506,6 @@ void glPushAttrib(GLbitfield mask) {}
 void glPopAttrib(void) {}
 void glPolygonMode(GLenum face, GLenum mode) {}
 void glReadBuffer(GLenum mode) {}
-void glPixelStorei(GLenum pname, GLint param) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
 void glAlphaFunc(GLenum func, GLclampf ref) {} // We need a TEVSTAGE for comparing and discarding pixels by alpha value
 
