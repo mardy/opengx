@@ -179,6 +179,21 @@ static void setup_cull_mode()
     }
 }
 
+static inline uint8_t gx_compare_from_gl(GLenum func)
+{
+    switch (func) {
+    case GL_NEVER: return GX_NEVER;
+    case GL_LESS: return GX_LESS;
+    case GL_EQUAL: return GX_EQUAL;
+    case GL_LEQUAL: return GX_LEQUAL;
+    case GL_GREATER: return GX_GREATER;
+    case GL_NOTEQUAL: return GX_NEQUAL;
+    case GL_GEQUAL: return GX_GEQUAL;
+    case GL_ALWAYS: return GX_ALWAYS;
+    default: return 0xff;
+    }
+}
+
 int ogx_prepare_swap_buffers()
 {
     return 0;
@@ -216,6 +231,9 @@ void ogx_initialize()
 
     glparamstate.glcullmode = GL_BACK;
     glparamstate.cullenabled = 0;
+    glparamstate.alpha_func = GX_ALWAYS;
+    glparamstate.alpha_ref = 0;
+    glparamstate.alphatest_enabled = 0;
     glparamstate.frontcw = 0; // By default front is CCW
     glparamstate.texture_env_mode = GL_MODULATE;
 
@@ -368,6 +386,10 @@ void glEnable(GLenum cap)
         glparamstate.cullenabled = 1;
         glparamstate.dirty.bits.dirty_cull = 1;
         break;
+    case GL_ALPHA_TEST:
+        glparamstate.alphatest_enabled = 1;
+        glparamstate.dirty.bits.dirty_alphatest = 1;
+        break;
     case GL_BLEND:
         glparamstate.blendenabled = 1;
         glparamstate.dirty.bits.dirty_blend = 1;
@@ -409,6 +431,10 @@ void glDisable(GLenum cap)
     case GL_CULL_FACE:
         glparamstate.cullenabled = 0;
         glparamstate.dirty.bits.dirty_cull = 1;
+        break;
+    case GL_ALPHA_TEST:
+        glparamstate.alphatest_enabled = 0;
+        glparamstate.dirty.bits.dirty_alphatest = 1;
         break;
     case GL_BLEND:
         glparamstate.blendenabled = 0;
@@ -1114,6 +1140,8 @@ void glClear(GLbitfield mask)
 
     GX_SetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_COPY);
     GX_SetCullMode(GX_CULL_NONE);
+    GX_SetZCompLoc(GX_ENABLE);
+    GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
 
     static float modl[3][4];
     modl[0][0] = 1.0f;
@@ -1171,36 +1199,12 @@ void glClear(GLbitfield mask)
 
 void glDepthFunc(GLenum func)
 {
-    switch (func) {
-    case GL_NEVER:
-        glparamstate.zfunc = GX_NEVER;
-        break;
-    case GL_LESS:
-        glparamstate.zfunc = GX_LESS;
-        break;
-    case GL_EQUAL:
-        glparamstate.zfunc = GX_EQUAL;
-        break;
-    case GL_LEQUAL:
-        glparamstate.zfunc = GX_LEQUAL;
-        break;
-    case GL_GREATER:
-        glparamstate.zfunc = GX_GREATER;
-        break;
-    case GL_NOTEQUAL:
-        glparamstate.zfunc = GX_NEQUAL;
-        break;
-    case GL_GEQUAL:
-        glparamstate.zfunc = GX_GEQUAL;
-        break;
-    case GL_ALWAYS:
-        glparamstate.zfunc = GX_ALWAYS;
-        break;
-    default:
-        break;
-    }
+    uint8_t gx_func = gx_compare_from_gl(func);
+    if (gx_func == 0xff) return;
+    glparamstate.zfunc = gx_func;
     glparamstate.dirty.bits.dirty_z = 1;
 }
+
 void glDepthMask(GLboolean flag)
 {
     if (flag == GL_FALSE || flag == 0)
@@ -1223,6 +1227,16 @@ void glFlush() {} // All commands are sent immediately to draw, no queue, so poi
 void glFinish()
 {
     GX_DrawDone(); // Be careful, WaitDrawDone waits for the DD command, this sends AND waits for it
+}
+
+void glAlphaFunc(GLenum func, GLclampf ref)
+{
+    uint8_t gx_func = gx_compare_from_gl(func);
+    if (gx_func == 0xff) return;
+
+    glparamstate.alpha_func = gx_func;
+    glparamstate.alpha_ref = ref * 255;
+    glparamstate.dirty.bits.dirty_alphatest = 1;
 }
 
 void glBlendFunc(GLenum sfactor, GLenum dfactor)
@@ -2030,6 +2044,17 @@ void _ogx_apply_state()
             GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
     }
 
+    if (glparamstate.dirty.bits.dirty_alphatest) {
+        if (glparamstate.alphatest_enabled) {
+            GX_SetZCompLoc(GX_DISABLE);
+            GX_SetAlphaCompare(glparamstate.alpha_func, glparamstate.alpha_ref,
+                               GX_AOP_AND, GX_ALWAYS, 0);
+        } else {
+            GX_SetZCompLoc(GX_ENABLE);
+            GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+        }
+    }
+
     if (glparamstate.dirty.bits.dirty_cull) {
         setup_cull_mode();
     }
@@ -2404,7 +2429,6 @@ void glPolygonMode(GLenum face, GLenum mode) {}
 void glReadBuffer(GLenum mode) {}
 void glPixelStorei(GLenum pname, GLint param) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
-void glAlphaFunc(GLenum func, GLclampf ref) {} // We need a TEVSTAGE for comparing and discarding pixels by alpha value
 
 /*
  ****** NOTES ******
