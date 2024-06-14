@@ -562,6 +562,10 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         }
     }
 
+    debug(OGX_LOG_TEXTURE,
+          "No fast conversion registered for GL format %04x to GX format %d",
+          format, gx_format);
+
     /* Here starts the code for the generic converter. We start by selecting
      * the proper Texel subclass for the given GX texture format, then we
      * select the reader based on the GL type parameter, and then we do the

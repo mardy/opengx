@@ -335,7 +335,8 @@ bool _ogx_call_list_append(CommandType op, ...)
     va_list ap;
     int count;
 
-    debug("Adding command %d to list %d", op, glparamstate.current_call_list.index);
+    debug(OGX_LOG_CALL_LISTS, "Adding command %d to list %d",
+          op, glparamstate.current_call_list.index);
     int index = last_command(&buffer);
     if (index >= 0) {
         command = &buffer->commands[index];
@@ -551,7 +552,7 @@ void glCallList(GLuint id)
 
     HANDLE_CALL_LIST(CALL_LIST, id);
 
-    debug("Calling list %d", id - CALL_LIST_START_ID);
+    debug(OGX_LOG_CALL_LISTS, "Calling list %d", id - CALL_LIST_START_ID);
 
     bool must_decrement = false;
     if (glparamstate.current_call_list.index >= 0) {
