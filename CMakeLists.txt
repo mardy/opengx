@@ -13,6 +13,7 @@ add_library(${TARGET} STATIC
     src/arrays.h
     src/call_lists.c
     src/call_lists.h
+    src/debug.c
     src/debug.h
     src/functions.c
     src/gc_gl.c

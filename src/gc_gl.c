@@ -201,10 +201,7 @@ int ogx_prepare_swap_buffers()
 
 void ogx_initialize()
 {
-    const char *log_env = getenv("OPENGX_DEBUG");
-    if (log_env) {
-        _ogx_log_level = log_env[0] - '0';
-    }
+    _ogx_log_init();
 
     glparamstate.current_call_list.index = -1;
     GX_SetDispCopyGamma(GX_GM_1_0);
@@ -1855,7 +1852,8 @@ static LightMasks prepare_lighting()
             masks.specular_mask |= (1 << gx_specular_idx);
         }
     }
-    debug("Ambient mask 0x%02x, diffuse 0x%02x, specular 0x%02x",
+    debug(OGX_LOG_LIGHTING,
+          "Ambient mask 0x%02x, diffuse 0x%02x, specular 0x%02x",
           masks.ambient_mask, masks.diffuse_mask, masks.specular_mask);
     return masks;
 }

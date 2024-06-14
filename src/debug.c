@@ -1,8 +1,7 @@
 /*****************************************************************************
 Copyright (c) 2011  David Guillen Fandos (david@davidgf.net)
+Copyright (c) 2024  Alberto Mardegan (mardy@users.sourceforge.net)
 All rights reserved.
-
-Attention! Contains pieces of code from others such as Mesa and GRRLib
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -29,32 +28,35 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-#ifndef OGX_DEBUG_H
-#define OGX_DEBUG_H
+#include "debug.h"
 
-#include <errno.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-typedef enum {
-    OGX_LOG_WARNING = 1 << 0,
-    OGX_LOG_CALL_LISTS = 1 << 1,
-    OGX_LOG_LIGHTING = 1 << 2,
-    OGX_LOG_TEXTURE = 1 << 3,
-} OgxLogMask;
+OgxLogMask _ogx_log_mask = 0;
 
-extern OgxLogMask _ogx_log_mask;
+static const struct {
+    const char *feature;
+    OgxLogMask mask;
+} s_feature_masks[] = {
+    { "warning", OGX_LOG_WARNING },
+    { "call-lists", OGX_LOG_CALL_LISTS },
+    { "lighting", OGX_LOG_LIGHTING },
+    { "texture", OGX_LOG_TEXTURE },
+    { NULL, 0 },
+};
 
-/* Warning are always emitted unless the mask is 0 */
-#define warning(format, ...) \
-    if (_ogx_log_mask) { \
-        fprintf(stderr, format "\n", ##__VA_ARGS__); \
+void _ogx_log_init()
+{
+    const char *log_env = getenv("OPENGX_DEBUG");
+    if (log_env) {
+        for (int i = 0; s_feature_masks[i].feature != NULL; i++) {
+            if (strstr(log_env, s_feature_masks[i].feature) != NULL) {
+                _ogx_log_mask |= s_feature_masks[i].mask;
+            }
+        }
+        if (strcmp(log_env, "all") == 0) {
+            _ogx_log_mask = 0xffffffff;
+        }
     }
-
-#define debug(mask, format, ...) \
-    if (_ogx_log_mask & mask) { \
-        fprintf(stderr, format "\n", ##__VA_ARGS__); \
-    }
-
-void _ogx_log_init();
-
-#endif /* OGX_DEBUG_H */
+}
