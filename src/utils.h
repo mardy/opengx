@@ -203,4 +203,21 @@ static inline int read_index(const GLvoid *indices, GLenum type, int i)
     }
 }
 
+static inline void set_gx_mtx_rowv(int row, Mtx m, float *values)
+{
+    m[row][0] = values[0];
+    m[row][1] = values[1];
+    m[row][2] = values[2];
+    m[row][3] = values[3];
+}
+
+static inline void set_gx_mtx_row(int row, Mtx m,
+                                  float c0, float c1, float c2, float c3)
+{
+    m[row][0] = c0;
+    m[row][1] = c1;
+    m[row][2] = c2;
+    m[row][3] = c3;
+}
+
 #endif /* OGX_UTILS_H */

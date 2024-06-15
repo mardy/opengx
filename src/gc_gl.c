@@ -78,13 +78,8 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
-        float trans[3][4];                                         \
-        int i;                                                     \
-        int j;                                                     \
-        for (i = 0; i < 3; i++)                                    \
-            for (j = 0; j < 4; j++)                                \
-                trans[i][j] = glparamstate.modelview_matrix[j][i]; \
-                                                                   \
+        Mtx trans;                                                 \
+        model_view_matrix_to_gx(trans);                            \
         GX_LoadPosMtxImm(trans, GX_PNMTX3);                        \
         GX_SetCurrentMtx(GX_PNMTX3);                               \
     }
@@ -128,6 +123,13 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
         guMtxTranspose(mvinverse, normalm);                            \
         GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
     }
+
+static inline void model_view_matrix_to_gx(Mtx mv)
+{
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 4; j++)
+            mv[i][j] = glparamstate.modelview_matrix[j][i];
+}
 
 /* Deduce the projection type (perspective vs orthogonal) and the values of the
  * near and far clipping plane from the projection matrix. */
@@ -218,6 +220,13 @@ void ogx_initialize()
     glparamstate.cullenabled = 0;
     glparamstate.frontcw = 0; // By default front is CCW
     glparamstate.texture_env_mode = GL_MODULATE;
+    glparamstate.texture_gen_mode = GL_EYE_LINEAR;
+    glparamstate.texture_gen_enabled = 0;
+    /* All the other plane elements should be set to 0.0f */
+    glparamstate.texture_eye_plane_s[0] = 1.0f;
+    glparamstate.texture_eye_plane_t[1] = 1.0f;
+    glparamstate.texture_object_plane_s[0] = 1.0f;
+    glparamstate.texture_object_plane_t[1] = 1.0f;
 
     glparamstate.cur_proj_mat = -1;
     glparamstate.cur_modv_mat = -1;
@@ -361,6 +370,22 @@ void glEnable(GLenum cap)
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 1;
         break;
+    case GL_TEXTURE_GEN_S:
+        glparamstate.texture_gen_enabled |= OGX_TEXGEN_S;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_T:
+        glparamstate.texture_gen_enabled |= OGX_TEXGEN_T;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_R:
+        glparamstate.texture_gen_enabled |= OGX_TEXGEN_R;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_Q:
+        glparamstate.texture_gen_enabled |= OGX_TEXGEN_Q;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
     case GL_COLOR_MATERIAL:
         glparamstate.lighting.color_material_enabled = 1;
         break;
@@ -402,6 +427,22 @@ void glDisable(GLenum cap)
     switch (cap) {
     case GL_TEXTURE_2D:
         glparamstate.texture_enabled = 0;
+        break;
+    case GL_TEXTURE_GEN_S:
+        glparamstate.texture_gen_enabled &= ~OGX_TEXGEN_S;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_T:
+        glparamstate.texture_gen_enabled &= ~OGX_TEXGEN_T;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_R:
+        glparamstate.texture_gen_enabled &= ~OGX_TEXGEN_R;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_TEXTURE_GEN_Q:
+        glparamstate.texture_gen_enabled &= ~OGX_TEXGEN_Q;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
         break;
     case GL_COLOR_MATERIAL:
         glparamstate.lighting.color_material_enabled = 0;
@@ -1822,6 +1863,48 @@ static void setup_fog()
     GX_SetFog(mode, start, end, near, far, color);
 }
 
+static void setup_texture_gen()
+{
+    Mtx m;
+
+    if (!glparamstate.texture_gen_enabled) {
+        GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+        return;
+    }
+
+    /* The GX API does not allow setting different inputs and generation modes
+     * for the S and T coordinates; so, if one of them is enabled, we assume
+     * that both share the same generation mode. */
+    u32 input_type = GX_TG_TEX0;
+    u32 matrix_src = GX_IDENTITY;
+    switch (glparamstate.texture_gen_mode) {
+    case GL_OBJECT_LINEAR:
+        input_type = GX_TG_POS;
+        matrix_src = GX_TEXMTX0;
+        set_gx_mtx_rowv(0, m, glparamstate.texture_object_plane_s);
+        set_gx_mtx_rowv(1, m, glparamstate.texture_object_plane_t);
+        set_gx_mtx_row(2, m, 0.0f, 0.0f, 1.0f, 0.0f);
+        GX_LoadTexMtxImm(m, GX_TEXMTX0, GX_MTX2x4);
+        break;
+    case GL_EYE_LINEAR:
+        input_type = GX_TG_POS;
+        matrix_src = GX_TEXMTX0;
+        model_view_matrix_to_gx(m);
+        Mtx eye_plane;
+        set_gx_mtx_rowv(0, eye_plane, glparamstate.texture_eye_plane_s);
+        set_gx_mtx_rowv(1, eye_plane, glparamstate.texture_eye_plane_t);
+        set_gx_mtx_row(2, eye_plane, 0.0f, 0.0f, 1.0f, 0.0f);
+        guMtxConcat(eye_plane, m, m);
+        GX_LoadTexMtxImm(m, GX_TEXMTX0, GX_MTX2x4);
+        break;
+    default:
+        warning("Unsupported texture coordinate generation mode %x",
+                glparamstate.texture_gen_mode);
+    }
+
+    GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, input_type, matrix_src);
+}
+
 static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
                                 u8 channel)
 {
@@ -1854,9 +1937,10 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
     GX_SetTevColorOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GX_SetTevAlphaOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GX_SetTevOrder(stage, GX_TEXCOORD0, GX_TEXMAP0, channel);
-    // Set up the data for the TEXCOORD0 (use a identity matrix, TODO: allow user texture matrices)
     GX_SetNumTexGens(1);
-    GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    if (glparamstate.dirty.bits.dirty_texture_gen) {
+        setup_texture_gen();
+    }
 }
 
 static void setup_render_stages(int texen)

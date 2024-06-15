@@ -160,6 +160,46 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
     };
 }
 
+void glTexGeni(GLenum coord, GLenum pname, GLint param)
+{
+    /* Since in GX we cannot set different modes per texture coordinate, we
+     * only look at the S coordinate, hoping that the other enabled coordinates
+     * will use the same parameters. */
+    if (coord != GL_S) return;
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        glparamstate.texture_gen_mode = param;
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    }
+}
+
+void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        glTexGeni(coord, pname, params[0]);
+        break;
+    case GL_EYE_PLANE:
+        if (coord == GL_S) {
+            floatcpy(glparamstate.texture_eye_plane_s, params, 4);
+        } else if (coord == GL_T) {
+            floatcpy(glparamstate.texture_eye_plane_t, params, 4);
+        }
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    case GL_OBJECT_PLANE:
+        if (coord == GL_S) {
+            floatcpy(glparamstate.texture_object_plane_s, params, 4);
+        } else if (coord == GL_T) {
+            floatcpy(glparamstate.texture_object_plane_t, params, 4);
+        }
+        glparamstate.dirty.bits.dirty_texture_gen = 1;
+        break;
+    }
+}
+
 void glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 {
     /* For the time being, all the parameters we support take integer values */

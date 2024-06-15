@@ -52,12 +52,23 @@ typedef struct gltexture_
     GXTexObj texobj;
 } gltexture_;
 
+typedef enum {
+    OGX_TEXGEN_S = 1 << 0,
+    OGX_TEXGEN_T = 1 << 1,
+    OGX_TEXGEN_R = 1 << 2,
+    OGX_TEXGEN_Q = 1 << 3,
+} OgxTexgenMask;
+
 typedef struct glparams_
 {
     Mtx44 modelview_matrix;
     Mtx44 projection_matrix;
     Mtx44 modelview_stack[MAX_MODV_STACK];
     Mtx44 projection_stack[MAX_PROJ_STACK];
+    float texture_eye_plane_s[4];
+    float texture_eye_plane_t[4];
+    float texture_object_plane_s[4];
+    float texture_object_plane_t[4];
     int cur_modv_mat, cur_proj_mat;
 
     unsigned char srcblend, dstblend;
@@ -66,6 +77,10 @@ typedef struct glparams_
     unsigned char matrixmode;
     unsigned char frontcw, cullenabled;
     uint16_t texture_env_mode;
+    /* There should be 4 of these (for S, T, R, Q) but GX uses a single
+     * transformation for all of them */
+    uint16_t texture_gen_mode;
+    OgxTexgenMask texture_gen_enabled;
     GLenum glcullmode;
     int glcurtex;
     GXColor clear_color;
@@ -108,6 +123,7 @@ typedef struct glparams_
             unsigned dirty_lighting : 1;
             unsigned dirty_material : 1;
             unsigned dirty_cull : 1;
+            unsigned dirty_texture_gen : 1;
         } bits;
         unsigned int all;
     } dirty;
