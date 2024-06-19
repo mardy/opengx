@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.13)
 project(OpenGX VERSION 0.1)
 
+option(BUILD_OPENGX "Build the opengx library" ON)
 option(BUILD_DOCS "Build the documentation" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_MODULE_PATH}")
+
+# This is ON by default, of course, but we allow switching it off in case one
+# just needs to build the documentation
+if(BUILD_OPENGX)
 
 set(TARGET opengx)
 
@@ -47,6 +52,8 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opengl.pc
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 install(FILES OpenGLConfig.cmake
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/OpenGL")
+
+endif(BUILD_OPENGX)
 
 if(BUILD_DOCS)
     include(UseLATEX)

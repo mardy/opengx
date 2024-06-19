@@ -1,0 +1,37 @@
+name: Documentation
+
+on:
+  push:
+    paths:
+      - 'doc/**'
+  pull_request:
+    paths:
+      - 'doc/**'
+
+jobs:
+  docs:
+    name: ubuntu-latest
+    runs-on: ubuntu-latest
+ 
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          cmake \
+          imagemagick \
+          texlive-latex-extra
+
+    - name: Build
+      run: |
+        cmake -S. -Bbuild -DBUILD_DOCS=ON -DBUILD_OPENGX=OFF
+        cd build
+        make 
+
+    - name: Archive built documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: opengx.pdf
+        path: build/doc/src/opengx.pdf
