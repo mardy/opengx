@@ -1290,12 +1290,12 @@ function(latex_convert_image
         "${convert_flags}")
       set(output_file_list ${output_dir}/${output_file})
     else()
-      # As a shortcut, we can just copy the file.
-      add_custom_command(OUTPUT ${output_dir}/${input_file}
-        COMMAND ${CMAKE_COMMAND}
-        ARGS -E copy ${input_dir}/${input_file} ${output_dir}/${input_file}
-        DEPENDS ${input_dir}/${input_file}
-        )
+#      # As a shortcut, we can just copy the file.
+#      add_custom_command(OUTPUT ${output_dir}/${input_file}
+#        COMMAND ${CMAKE_COMMAND}
+#        ARGS -E copy ${input_dir}/${input_file} ${output_dir}/${input_file}
+#        DEPENDS ${input_dir}/${input_file}
+#        )
       set(output_file_list ${output_dir}/${input_file})
     endif()
   else()
