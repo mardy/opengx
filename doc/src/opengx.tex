@@ -338,7 +338,7 @@ The final pixel color in this case is the product between the rasterized color a
 
 \subsubsection{Lit and untextured render}
 
-The light color is calculated using two channel colors. We're going to use channel 0 to emulate ambient lights and channel 1 to emulate diffuse lights. This decision is explained later. So we'll use two TEV stages, the first for rasterizing the channel zero and the second for rasterizing the channel one and combine them.
+The light color is calculated using two channel colors. We're going to use channel 0 to emulate ambient and specular lights and channel 1 to emulate diffuse lights. This decision is explained later. So we'll use two TEV stages, the first for rasterizing the channel zero and the second for rasterizing the channel one and combine them.
 
 \begin{figure}[ht]
 \centering
@@ -364,9 +364,12 @@ As the time of writting I've just realized that it's possible to use only two st
 
 OpenGL has support for up to eight lights. Each light has a direction, position, cutoff, etc. depending how the light behaves (it's a point, a light cone, a directional light...). But all the lights have three color components: ambient, diffuse and specular. The ambient component only depends on the distance of the light and the vertex. The diffuse component depends on the distance (just like the ambient) but also depends on the light angle formed by the light and the surface normal. Finally specular lights depend on the distance as well and the angle formed by the light, the vertex and the viewer.
 
-It's important to remember that the diffuse attenuation factor of a light is on a per channel basis instead by light. So we have to use one channel for ambient lights and another one for diffuse lights. We exclude specular lighting because there aren't enough channels to compute the specular component. For those reasons we are limiting the number of active lights to four. We'll use the four first GX lights to emulate ambient lighting and the other four lights to emulate diffuse lighting. 
+It's important to remember that the diffuse attenuation factor of a light is on a per channel basis instead by light. So we have to use one channel for ambient and specular lights and another one for diffuse lights. We put specular lights in the same channel as the ambient light because ambient lights are not attenuated, so we can set the attenuation function to GX\_AF\_SPEC without affecting them. In the second channel we compute the diffuse lights.
 
-The material stuff is done in CPU. We multiply the light color by the material color and use the resulting color as light color. The global ambient light, which is an additive light color without attenuation, is implemented using the ambient color present in the lighting ecuation, although it could be just added after as a constant color in a TEV stage (but this way we save a TEV stage).
+The ambient source for both channel is set to GX\_SRC\_REG, and the register values are the global ambient color for the first channel, and zero (which results in no ambient light addition) for the second one.
+
+As for the materials, while OpenGL allows specifying different material colors for the specular and for the ambient lights, in GX we can specify only one material color per each channel. Since we are using the first channel both for the ambient and the specular lights, we need to make a choice between which material color to use: our choice falls onto the ambient color if ambient lighting is enabled, and set it to the specular color only if we have no ambient light. The reason is that, generally, ambient light has a stronger visual impact on the rendered scene, so we prioritize it. This leads to an issue where, if both ambient and specular lights are enabled, the specular light will be computed using the ambient material color, ignoring whatever the client requested for the specular material color; but in most cases this should not result in a noticeable difference.
+
 
 \subsection {Texture management}
 
