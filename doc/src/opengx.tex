@@ -377,7 +377,7 @@ As for the materials, while OpenGL allows specifying different material colors f
 
 \subsection {Texture management}
 
-Only 2D textures are implemented. The formats accepted by the implementation are mainly RGB and RGBA but also other special formats like Luminance and compressed textures. The internal formats accepted by the GPU are shown in Figure~\ref{table:format1}.
+Only 2D and 1D textures are implemented. The formats accepted by the implementation are mainly RGB and RGBA but also other special formats like Luminance and compressed textures. The internal formats accepted by the GPU are shown in Figure~\ref{table:format1}.
 
 \begin{figure}[ht]
 \centering
@@ -394,6 +394,10 @@ Only 2D textures are implemented. The formats accepted by the implementation are
 \hline
 	GX\_TF\_IA8  & 8 bits & 8 bits & No \\
 \hline
+	GX\_TF\_I8  & 8 bits & No & No \\
+\hline
+	GX\_TF\_A8  & No & 8 bits & No \\
+\hline
 \end{tabular}
 \caption{Texture formats used by OpenGX}
 \label{table:format1}
@@ -405,6 +409,25 @@ Compressed textures are only used for non-alpha textures because compressed text
 
 Texture levels (used for mipmapping) are implemented in an efficient way. If the user loads one texture level the implementation reserves memory for that level only. If the user loads more levels the memory is resized to accommodate all the levels. GX allows the programmer to specify a level range for a specific texture, so we can have one level textures and multiple level textures.
 
+
+\subsection {Call lists}
+
+Call lists are mostly implemented in software, storing the command opcodes and parameters into memory and replaying them later. The notable exception is drawing commands, that are compiled into a GX display list and then stored along with the other operations.
+
+The HANDLE\_CALL\_LIST macro is called at the beginning of those GL functions that can be stored into a call list. It takes care of adding the operation to the active call list (if there's one) minimizing the visual impact of call lists on the code base.
+
+
+\subsection {Selection mode}
+
+GL selection mode, also known as "picking mode", is typically used in applications to determine which objects are rendered at a certain screen position, in order to implement mouse interactions. When selection mode is active, drawing primitives do not result in any pixels (or even Z-pixels) being drawn, but instead produce a stack containing the names of the object which would have been drawn.
+
+OpenGX implements selection mode by switching of color and alpha updates, but the Z-buffer is still being drawn to in order to have a way to track the objects being drawn: whenever we want to know if a drawing primitive will result in a hit, we clear the GX bounding box before executing the draw commands and examine it afterwards.
+
+When leaving the selection mode we need to restore the Z buffer to its initial state (which we saved using GX\_CopyTex) by rendering it as a Z-texture.
+
+\subsubsection {Limitations}
+
+The hit information recorded during selection mode should also contain the minimum and maximum values of the Z buffer at the moment that a hit was recorded. This is a relatively expensive operation (there's no shortcut around examining all Z pixels one by one) which OpenGX does not currently perform: not only we haven't found an application using this information, but both the AMD and Mesa drivers on the Linux desktop seem to not deliver it and just set both these values to 0.
 
 
 \pagebreak[4]
