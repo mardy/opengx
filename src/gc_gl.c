@@ -115,13 +115,6 @@ static void draw_arrays_general(int first, int count, int ne,
         GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
     }
 
-static inline void model_view_matrix_to_gx(Mtx mv)
-{
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 4; j++)
-            mv[i][j] = glparamstate.modelview_matrix[j][i];
-}
-
 /* Deduce the projection type (perspective vs orthogonal) and the values of the
  * near and far clipping plane from the projection matrix. */
 static void get_projection_info(u8 *type, float *near, float *far)
@@ -168,21 +161,6 @@ static void setup_cull_mode()
         }
     } else {
         GX_SetCullMode(GX_CULL_NONE);
-    }
-}
-
-static inline uint8_t gx_compare_from_gl(GLenum func)
-{
-    switch (func) {
-    case GL_NEVER: return GX_NEVER;
-    case GL_LESS: return GX_LESS;
-    case GL_EQUAL: return GX_EQUAL;
-    case GL_LEQUAL: return GX_LEQUAL;
-    case GL_GREATER: return GX_GREATER;
-    case GL_NOTEQUAL: return GX_NEQUAL;
-    case GL_GEQUAL: return GX_GEQUAL;
-    case GL_ALWAYS: return GX_ALWAYS;
-    default: return 0xff;
     }
 }
 
