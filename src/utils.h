@@ -241,6 +241,21 @@ static inline void gl_matrix_to_gx44(const GLfloat *source, Mtx44 mv)
     }
 }
 
+static inline uint8_t gx_compare_from_gl(GLenum func)
+{
+    switch (func) {
+    case GL_NEVER: return GX_NEVER;
+    case GL_LESS: return GX_LESS;
+    case GL_EQUAL: return GX_EQUAL;
+    case GL_LEQUAL: return GX_LEQUAL;
+    case GL_GREATER: return GX_GREATER;
+    case GL_NOTEQUAL: return GX_NEQUAL;
+    case GL_GEQUAL: return GX_GEQUAL;
+    case GL_ALWAYS: return GX_ALWAYS;
+    default: return 0xff;
+    }
+}
+
 /* Set up the matrices for 2D pixel-perfect drawing */
 void _ogx_setup_2D_projection(void);
 
