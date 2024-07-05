@@ -82,6 +82,16 @@ extern uintptr_t ogx_fast_conv_LA_IA8;
 extern uintptr_t ogx_fast_conv_Intensity_I8;
 extern uintptr_t ogx_fast_conv_Alpha_A8;
 
+typedef enum {
+    OGX_STENCIL_NONE = 0,
+    /* Don't worry about Z buffer being updated even if a fragment fails the
+     * stencil test. */
+    OGX_STENCIL_DIRTY_Z = 1 << 0,
+    OGX_STENCIL_8BIT = 1 << 1,
+} OgxStencilFlags;
+
+void ogx_stencil_create(OgxStencilFlags flags);
+
 #ifdef __cplusplus
 } // extern C
 #endif

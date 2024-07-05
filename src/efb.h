@@ -1,5 +1,6 @@
 /*****************************************************************************
 Copyright (c) 2011  David Guillen Fandos (david@davidgf.net)
+Copyright (c) 2024  Alberto Mardegan (mardy@users.sourceforge.net)
 All rights reserved.
 
 Attention! Contains pieces of code from others such as Mesa and GRRLib
@@ -29,34 +30,32 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-#ifndef OGX_DEBUG_H
-#define OGX_DEBUG_H
+#ifndef OPENGX_EFB_H
+#define OPENGX_EFB_H
 
-#include <ogc/system.h>
-#include <errno.h>
-#include <stdio.h>
+#include <GL/gl.h>
+#include <malloc.h>
+#include <ogc/gx.h>
 
 typedef enum {
-    OGX_LOG_WARNING = 1 << 0,
-    OGX_LOG_CALL_LISTS = 1 << 1,
-    OGX_LOG_LIGHTING = 1 << 2,
-    OGX_LOG_TEXTURE = 1 << 3,
-    OGX_LOG_STENCIL = 1 << 4,
-} OgxLogMask;
+    OGX_EFB_NONE = 0,
+    OGX_EFB_CLEAR = 1 << 0,
+    OGX_EFB_COLOR = 1 << 1,
+    OGX_EFB_ZBUFFER = 1 << 2,
+} OgxEfbFlags;
 
-extern OgxLogMask _ogx_log_mask;
+typedef enum {
+    OGX_EFB_SCENE = 1,
+    OGX_EFB_STENCIL,
+} OgxEfbContentType;
 
-/* Warning are always emitted unless the mask is 0 */
-#define warning(format, ...) \
-    if (_ogx_log_mask) { \
-        SYS_Report(format "\n", ##__VA_ARGS__); \
-    }
+extern OgxEfbContentType _ogx_efb_content_type;
 
-#define debug(mask, format, ...) \
-    if (_ogx_log_mask & mask) { \
-        SYS_Report(format "\n", ##__VA_ARGS__); \
-    }
+void _ogx_efb_save(OgxEfbFlags flags);
+void _ogx_efb_restore(OgxEfbFlags flags);
 
-void _ogx_log_init();
+void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
+                             void *texels, OgxEfbFlags flags);
+void _ogx_efb_restore_texobj(GXTexObj *texobj);
 
-#endif /* OGX_DEBUG_H */
+#endif /* OPENGX_EFB_H */

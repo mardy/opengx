@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "call_lists.h"
 #include "debug.h"
+#include "stencil.h"
 #include "utils.h"
 
 #include <GL/gl.h>
@@ -181,17 +182,35 @@ static Command *new_command(CommandBuffer **head)
     }
 }
 
-static void run_command(Command *cmd)
+static void flat_draw_list(void *cb_data)
+{
+    struct GXDisplayList *gxlist = cb_data;
+
+    GX_CallDispList(gxlist->list, gxlist->size);
+}
+
+static void run_gx_list(struct GXDisplayList *gxlist)
 {
     struct client_state cs;
 
+    cs = glparamstate.cs;
+    glparamstate.cs = gxlist->cs;
+    _ogx_apply_state();
+    _ogx_setup_render_stages();
+    glparamstate.cs = cs;
+    GX_CallDispList(gxlist->list, gxlist->size);
+    glparamstate.draw_count++;
+
+    if (glparamstate.stencil.enabled) {
+        _ogx_stencil_draw(flat_draw_list, gxlist);
+    }
+}
+
+static void run_command(Command *cmd)
+{
     switch (cmd->type) {
     case COMMAND_GXLIST:
-        cs = glparamstate.cs;
-        glparamstate.cs = cmd->c.gxlist.cs;
-        _ogx_apply_state();
-        glparamstate.cs = cs;
-        GX_CallDispList(cmd->c.gxlist.list, cmd->c.gxlist.size);
+        run_gx_list(&cmd->c.gxlist);
         break;
     case COMMAND_CALL_LIST:
         glCallList(cmd->c.gllist);

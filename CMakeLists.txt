@@ -25,6 +25,8 @@ add_library(${TARGET} STATIC
     src/call_lists.h
     src/debug.c
     src/debug.h
+    src/efb.c
+    src/efb.h
     src/functions.c
     src/gc_gl.c
     src/image_DXT.c
@@ -34,6 +36,8 @@ add_library(${TARGET} STATIC
     src/pixels.h
     src/selection.c
     src/state.h
+    src/stencil.c
+    src/stencil.h
     src/texture.c
     src/utils.h
 )

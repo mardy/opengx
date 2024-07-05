@@ -259,4 +259,9 @@ static inline uint8_t gx_compare_from_gl(GLenum func)
 /* Set up the matrices for 2D pixel-perfect drawing */
 void _ogx_setup_2D_projection(void);
 
+/* Set the OpenGL 3D modelview and projection matrices */
+void _ogx_setup_3D_projection(void);
+
+bool _ogx_setup_render_stages(void);
+
 #endif /* OGX_UTILS_H */
