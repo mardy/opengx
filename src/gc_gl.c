@@ -2152,6 +2152,63 @@ void _ogx_apply_state()
     glparamstate.dirty.all = 0;
 }
 
+static void draw_elements_general(uint8_t gxmode, int count, GLenum type,
+                                  const GLvoid *indices,
+                                  int ne, int color_provide, int texen)
+{
+    // Not using indices
+    GX_ClearVtxDesc();
+    if (glparamstate.cs.vertex_enabled)
+        GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+    if (ne)
+        GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
+    if (color_provide)
+        GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+    if (color_provide == 2)
+        GX_SetVtxDesc(GX_VA_CLR1, GX_DIRECT);
+    if (texen)
+        GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+
+    // Using floats
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+
+    // Invalidate vertex data as may have been modified by the user
+    GX_InvVtxCache();
+
+    bool loop = (gxmode == GL_LINE_LOOP);
+    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
+    for (int i = 0; i < count + loop; i++) {
+        int index = read_index(indices, type, i % count);
+        float value[4];
+        _ogx_array_reader_read_float(&glparamstate.vertex_array, index, value);
+
+        GX_Position3f32(value[0], value[1], value[2]);
+
+        if (ne) {
+            _ogx_array_reader_read_float(&glparamstate.normal_array, index, value);
+            GX_Normal3f32(value[0], value[1], value[2]);
+        }
+
+        if (color_provide) {
+            _ogx_array_reader_read_float(&glparamstate.color_array, index, value);
+            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
+            GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+            if (color_provide == 2)
+                GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+        }
+
+        if (texen) {
+            _ogx_array_reader_read_float(&glparamstate.texcoord_array, index, value);
+            GX_TexCoord2f32(value[0], value[1]);
+        }
+    }
+    GX_End();
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     unsigned char gxmode = draw_mode(mode);
@@ -2211,58 +2268,8 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
             color_provide = 1;
     }
 
-    // Not using indices
-    GX_ClearVtxDesc();
-    if (glparamstate.cs.vertex_enabled)
-        GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    if (glparamstate.cs.normal_enabled)
-        GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
-    if (color_provide)
-        GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-    if (color_provide == 2)
-        GX_SetVtxDesc(GX_VA_CLR1, GX_DIRECT);
-    if (texen)
-        GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
-
-    // Using floats
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
-
-    // Invalidate vertex data as may have been modified by the user
-    GX_InvVtxCache();
-
-    bool loop = (mode == GL_LINE_LOOP);
-    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
-    int i;
-    for (i = 0; i < count + loop; i++) {
-        int index = read_index(indices, type, i % count);
-        float value[4];
-        _ogx_array_reader_read_float(&glparamstate.vertex_array, index, value);
-
-        GX_Position3f32(value[0], value[1], value[2]);
-
-        if (glparamstate.cs.normal_enabled) {
-            _ogx_array_reader_read_float(&glparamstate.normal_array, index, value);
-            GX_Normal3f32(value[0], value[1], value[2]);
-        }
-
-        if (color_provide) {
-            _ogx_array_reader_read_float(&glparamstate.color_array, index, value);
-            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
-            GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
-            if (color_provide == 2)
-                GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
-        }
-
-        if (texen) {
-            _ogx_array_reader_read_float(&glparamstate.texcoord_array, index, value);
-            GX_TexCoord2f32(value[0], value[1]);
-        }
-    }
-    GX_End();
+    draw_elements_general(gxmode, count, type, indices,
+                          glparamstate.cs.normal_enabled, color_provide, texen);
 }
 
 static void draw_arrays_general(uint8_t gxmode, int first, int count, int ne,
