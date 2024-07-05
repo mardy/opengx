@@ -50,6 +50,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "opengx.h"
 #include "selection.h"
 #include "state.h"
+#include "stencil.h"
 #include "utils.h"
 
 #include <GL/gl.h>
@@ -338,7 +339,18 @@ void ogx_initialize()
     glparamstate.fog.start = 0.0f;
     glparamstate.fog.end = 1.0f;
 
+    glparamstate.stencil.enabled = false;
+    glparamstate.stencil.func = GX_ALWAYS;
+    glparamstate.stencil.ref = 0;
+    glparamstate.stencil.mask = 0xff;
+    glparamstate.stencil.wmask = 0xff;
+    glparamstate.stencil.clear = 0;
+    glparamstate.stencil.op_fail = GL_KEEP;
+    glparamstate.stencil.op_zfail = GL_KEEP;
+    glparamstate.stencil.op_zpass = GL_KEEP;
+
     glparamstate.error = GL_NO_ERROR;
+    glparamstate.draw_count = 0;
 
     // Setup data types for every possible attribute
 
@@ -378,6 +390,14 @@ void _ogx_setup_2D_projection()
     GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
 
     glparamstate.dirty.bits.dirty_matrices = 1;
+}
+
+void _ogx_setup_3D_projection()
+{
+    /* Assume that the modelview matrix has already been updated to GX_PNMTX3
+     */
+    GX_SetCurrentMtx(GX_PNMTX3);
+    PROJECTION_UPDATE
 }
 
 void glEnable(GLenum cap)
@@ -422,6 +442,9 @@ void glEnable(GLenum cap)
     case GL_DEPTH_TEST:
         glparamstate.ztest = GX_TRUE;
         glparamstate.dirty.bits.dirty_z = 1;
+        break;
+    case GL_STENCIL_TEST:
+        _ogx_stencil_enabled();
         break;
     case GL_FOG:
         glparamstate.fog.enabled = 1;
@@ -484,6 +507,9 @@ void glDisable(GLenum cap)
     case GL_DEPTH_TEST:
         glparamstate.ztest = GX_FALSE;
         glparamstate.dirty.bits.dirty_z = 1;
+        break;
+    case GL_STENCIL_TEST:
+        _ogx_stencil_disabled();
         break;
     case GL_LIGHTING:
         glparamstate.lighting.enabled = 0;
@@ -790,6 +816,7 @@ void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
     glparamstate.viewport[3] = height;
     GX_SetViewport(x, y, width, height, 0.0f, 1.0f);
     GX_SetScissor(x, y, width, height);
+    _ogx_stencil_update();
 }
 
 void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)
@@ -1176,6 +1203,10 @@ void glClear(GLbitfield mask)
         return;
     }
 
+    if (mask & GL_STENCIL_BUFFER_BIT) {
+        _ogx_stencil_clear();
+    }
+
     if (mask & GL_DEPTH_BUFFER_BIT) {
         GX_SetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
         GX_SetZCompLoc(GX_DISABLE);
@@ -1258,6 +1289,8 @@ void glClear(GLbitfield mask)
     glparamstate.dirty.bits.dirty_matrices = 1;
     glparamstate.dirty.bits.dirty_cull = 1;
     glparamstate.dirty.bits.dirty_texture_gen = 1;
+
+    glparamstate.draw_count++;
 }
 
 void glDepthFunc(GLenum func)
@@ -1992,17 +2025,18 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
     }
 }
 
-static void setup_render_stages(int texen)
+bool _ogx_setup_render_stages()
 {
+    int stages = 0, tex_coords = 0, tex_maps = 0;
+
     if (glparamstate.lighting.enabled) {
         LightMasks light_mask = prepare_lighting();
 
         GXColor color_zero = { 0, 0, 0, 0 };
         GXColor color_gamb = gxcol_new_fv(glparamstate.lighting.globalambient);
 
+        stages = 2;
         GX_SetNumChans(2);
-        GX_SetNumTevStages(2);
-        GX_SetNumTexGens(0);
 
         unsigned char vert_color_src = GX_SRC_VTX;
         if (!glparamstate.cs.color_enabled || !glparamstate.lighting.color_material_enabled) {
@@ -2091,10 +2125,12 @@ static void setup_render_stages(int texen)
         // Select COLOR1A1 for the rasterizer, disable all textures
         GX_SetTevOrder(GX_TEVSTAGE1, GX_TEXCOORDNULL, GX_TEXMAP_DISABLE, GX_COLOR1A1);
 
-        if (texen) {
+        if (glparamstate.texture_enabled) {
             // Do not select any raster value, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
             setup_texture_stage(GX_TEVSTAGE2, GX_CC_CPREV, GX_CA_APREV, GX_COLORNULL);
-            GX_SetNumTevStages(3);
+            stages++;
+            tex_coords++;
+            tex_maps++;
         }
     } else {
         // Unlit scene
@@ -2108,30 +2144,29 @@ static void setup_render_stages(int texen)
         unsigned char rasterized_color = GX_COLOR0A0;
         if (!glparamstate.cs.color_enabled) { // No need for vertex color raster, it's constant
             // Use constant color
-            vertex_color_register = GX_CC_KONST;
-            vertex_alpha_register = GX_CA_KONST;
-            // Select register 0 for color/alpha
-            GX_SetTevKColorSel(GX_TEVSTAGE0, GX_TEV_KCSEL_K0);
-            GX_SetTevKAlphaSel(GX_TEVSTAGE0, GX_TEV_KASEL_K0_A);
+            vertex_color_register = GX_CC_C0;
+            vertex_alpha_register = GX_CA_A0;
             // Load the color (current GL color)
             GXColor ccol = gxcol_new_fv(glparamstate.imm_mode.current_color);
-            GX_SetTevKColor(GX_KCOLOR0, ccol);
+            GX_SetTevColor(GX_TEVREG0, ccol);
 
             rasterized_color = GX_COLORNULL; // Disable vertex color rasterizer
         }
 
+        stages = 1;
         GX_SetNumChans(1);
-        GX_SetNumTevStages(1);
 
         // Disable lighting and output vertex color to the rasterized color
         GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, 0, 0, 0);
         GX_SetChanCtrl(GX_COLOR1A1, GX_DISABLE, GX_SRC_REG, GX_SRC_REG, 0, 0, 0);
 
-        if (texen) {
+        if (glparamstate.texture_enabled) {
             // Select COLOR0A0 for the rasterizer, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
             setup_texture_stage(GX_TEVSTAGE0,
                                 vertex_color_register, vertex_alpha_register,
                                 rasterized_color);
+            tex_coords++;
+            tex_maps++;
         } else {
             // In data: d: Raster Color
             GX_SetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, vertex_color_register);
@@ -2141,17 +2176,23 @@ static void setup_render_stages(int texen)
             GX_SetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
             // Select COLOR0A0 for the rasterizer, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
             GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORDNULL, GX_TEXMAP_DISABLE, rasterized_color);
-            GX_SetNumTexGens(0);
         }
     }
 
+    if (glparamstate.stencil.enabled) {
+        bool should_draw =
+            _ogx_stencil_setup_tev(&stages, &tex_coords, tex_maps);
+        if (!should_draw) return false;
+    }
+    GX_SetNumTevStages(stages);
+    GX_SetNumTexGens(tex_coords);
+
     setup_fog();
+    return true;
 }
 
 void _ogx_apply_state()
 {
-    setup_render_stages(glparamstate.texture_enabled);
-
     // Set up the OGL state to GX state
     if (glparamstate.dirty.bits.dirty_z)
         GX_SetZMode(glparamstate.ztest, glparamstate.zfunc, glparamstate.zwrite & glparamstate.ztest);
@@ -2167,15 +2208,23 @@ void _ogx_apply_state()
             GX_SetBlendMode(GX_BM_NONE, glparamstate.srcblend, glparamstate.dstblend, GX_LO_CLEAR);
     }
 
-    if (glparamstate.dirty.bits.dirty_alphatest) {
+    if (glparamstate.dirty.bits.dirty_alphatest ||
+        glparamstate.dirty.bits.dirty_stencil) {
+        u8 params[4] = { GX_ALWAYS, 0, GX_ALWAYS, 0 };
+        int comparisons = 0;
         if (glparamstate.alphatest_enabled) {
-            GX_SetZCompLoc(GX_DISABLE);
-            GX_SetAlphaCompare(glparamstate.alpha_func, glparamstate.alpha_ref,
-                               GX_AOP_AND, GX_ALWAYS, 0);
-        } else {
-            GX_SetZCompLoc(GX_ENABLE);
-            GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+            params[0] = glparamstate.alpha_func;
+            params[1] = glparamstate.alpha_ref;
+            comparisons++;
         }
+        if (glparamstate.stencil.enabled) {
+            params[comparisons * 2] = GX_GREATER;
+            /* The reference value is initialized to 0, which is the value we
+             * want */
+            comparisons++;
+        }
+        GX_SetZCompLoc(comparisons > 0 ? GX_DISABLE : GX_ENABLE);
+        GX_SetAlphaCompare(params[0], params[1], GX_AOP_AND, params[2], params[3]);
     }
 
     if (glparamstate.dirty.bits.dirty_cull) {
@@ -2192,14 +2241,35 @@ void _ogx_apply_state()
     }
 
     /* Reset the updated bits to 0. We don't unconditionally reset everything
-     * to 0 because some states might still be dirty. */
+     * to 0 because some states might still be dirty: for example, the stencil
+     * checks alters the texture coordinate generation. */
     glparamstate.dirty.bits.dirty_cull = 0;
     glparamstate.dirty.bits.dirty_lighting = 0;
     glparamstate.dirty.bits.dirty_matrices = 0;
+    glparamstate.dirty.bits.dirty_stencil = 0;
     glparamstate.dirty.bits.dirty_alphatest = 0;
     glparamstate.dirty.bits.dirty_blend = 0;
     glparamstate.dirty.bits.dirty_color_update = 0;
     glparamstate.dirty.bits.dirty_z = 0;
+}
+
+typedef struct {
+    u8 gxmode;
+    GLint first;
+    GLsizei count;
+} OgxDrawData;
+
+static void flat_draw_geometry(void *cb_data)
+{
+    OgxDrawData *data = cb_data;
+
+    /* TODO: we could use C++ templates here too, to build more effective
+     * drawing functions that only process the data we need. */
+    draw_arrays_general(data->gxmode, data->first, data->count,
+                        false, /* no normals */
+                        false, /* no color */
+                        false /* no texturing */);
+    GX_End();
 }
 
 static void draw_elements_general(uint8_t gxmode, int count, GLenum type,
@@ -2259,35 +2329,67 @@ static void draw_elements_general(uint8_t gxmode, int count, GLenum type,
     GX_End();
 }
 
+typedef struct {
+    u8 gxmode;
+    GLsizei count;
+    GLenum type;
+    const GLvoid *indices;
+} OgxDrawElementsData;
+
+static void flat_draw_elements(void *cb_data)
+{
+    OgxDrawElementsData *data = cb_data;
+
+    /* TODO: we could use C++ templates here too, to build more effective
+     * drawing functions that only process the data we need. */
+    draw_elements_general(data->gxmode, data->count, data->type, data->indices,
+                          false, /* no normals */
+                          false, /* no color */
+                          false /* no texturing */);
+    GX_End();
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     unsigned char gxmode = draw_mode(mode);
     if (gxmode == 0xff)
         return;
 
+    bool should_draw = true;
     int texen = glparamstate.cs.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
     } else {
+        should_draw = _ogx_setup_render_stages();
         _ogx_apply_state();
+
         /* When not building a display list, we can optimize the drawing by
          * avoiding passing texture coordinates if texturing is not enabled.
          */
         texen = texen && glparamstate.texture_enabled;
     }
 
-    int color_provide = 0;
-    if (glparamstate.cs.color_enabled &&
-        (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
-        if (glparamstate.lighting.enabled)
-            color_provide = 2; // Lighting requires two color channels
-        else
-            color_provide = 1;
+    //should_draw = 0;
+    if (should_draw) {
+        int color_provide = 0;
+        if (glparamstate.cs.color_enabled &&
+            (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
+            if (glparamstate.lighting.enabled)
+                color_provide = 2; // Lighting requires two color channels
+            else
+                color_provide = 1;
+        }
+
+        draw_arrays_general(gxmode, first, count, glparamstate.cs.normal_enabled,
+                            color_provide, texen);
+        glparamstate.draw_count++;
     }
 
-    draw_arrays_general(gxmode, first, count, glparamstate.cs.normal_enabled,
-                        color_provide, texen);
+    if (glparamstate.stencil.enabled) {
+        OgxDrawData draw_data = { gxmode, first, count };
+        _ogx_stencil_draw(flat_draw_geometry, &draw_data);
+    }
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
@@ -2297,11 +2399,13 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     if (gxmode == 0xff)
         return;
 
+    bool should_draw = true;
     int texen = glparamstate.cs.texcoord_enabled;
     if (glparamstate.current_call_list.index >= 0 &&
         glparamstate.current_call_list.execution_depth == 0) {
         _ogx_call_list_append(COMMAND_GXLIST);
     } else {
+        should_draw = _ogx_setup_render_stages();
         _ogx_apply_state();
         /* When not building a display list, we can optimize the drawing by
          * avoiding passing texture coordinates if texturing is not enabled.
@@ -2309,17 +2413,25 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         texen = texen && glparamstate.texture_enabled;
     }
 
-    int color_provide = 0;
-    if (glparamstate.cs.color_enabled &&
-        (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
-        if (glparamstate.lighting.enabled)
-            color_provide = 2; // Lighting requires two color channels
-        else
-            color_provide = 1;
+    if (should_draw) {
+        int color_provide = 0;
+        if (glparamstate.cs.color_enabled &&
+            (!glparamstate.lighting.enabled || glparamstate.lighting.color_material_enabled)) { // Vertex colouring
+            if (glparamstate.lighting.enabled)
+                color_provide = 2; // Lighting requires two color channels
+            else
+                color_provide = 1;
+        }
+
+        draw_elements_general(gxmode, count, type, indices,
+                              glparamstate.cs.normal_enabled, color_provide, texen);
+        glparamstate.draw_count++;
     }
 
-    draw_elements_general(gxmode, count, type, indices,
-                          glparamstate.cs.normal_enabled, color_provide, texen);
+    if (glparamstate.stencil.enabled) {
+        OgxDrawElementsData draw_data = { gxmode, count, type, indices };
+        _ogx_stencil_draw(flat_draw_elements, &draw_data);
+    }
 }
 
 static void draw_arrays_general(uint8_t gxmode, int first, int count, int ne,
@@ -2439,8 +2551,6 @@ void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdou
 // NOT GOING TO IMPLEMENT
 
 void glBlendEquation(GLenum mode) {}
-void glClearStencil(GLint s) {}
-void glStencilMask(GLuint mask) {} // Should use Alpha testing to achieve similar results
 void glShadeModel(GLenum mode) {}  // In theory we don't have GX equivalent?
 void glHint(GLenum target, GLenum mode) {}
 

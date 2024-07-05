@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <GL/gl.h>
 #include <gccore.h>
+#include <stdbool.h>
 
 // Constant definition. Here are the limits of this implementation.
 // Can be changed with care.
@@ -91,6 +92,7 @@ typedef struct glparams_
     GLenum glcullmode;
     GLenum render_mode;
     int glcurtex;
+    int draw_count;
     GXColor clear_color;
     float clearz;
 
@@ -157,6 +159,7 @@ typedef struct glparams_
             unsigned dirty_material : 1;
             unsigned dirty_cull : 1;
             unsigned dirty_texture_gen : 1;
+            unsigned dirty_stencil : 1;
         } bits;
         unsigned int all;
     } dirty;
@@ -203,6 +206,18 @@ typedef struct glparams_
         float start;
         float end;
     } fog;
+
+    struct _stencil {
+        bool enabled;
+        uint8_t func;
+        uint8_t ref;
+        uint8_t mask;
+        uint8_t wmask;
+        uint8_t clear;
+        uint16_t op_fail;
+        uint16_t op_zfail;
+        uint16_t op_zpass;
+    } stencil;
 
     gltexture_ textures[_MAX_GL_TEX];
 

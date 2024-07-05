@@ -1,5 +1,6 @@
 /*****************************************************************************
 Copyright (c) 2011  David Guillen Fandos (david@davidgf.net)
+Copyright (c) 2024  Alberto Mardegan (mardy@users.sourceforge.net)
 All rights reserved.
 
 Attention! Contains pieces of code from others such as Mesa and GRRLib
@@ -29,34 +30,23 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-#ifndef OGX_DEBUG_H
-#define OGX_DEBUG_H
+#ifndef OPENGX_STENCIL_H
+#define OPENGX_STENCIL_H
 
-#include <ogc/system.h>
-#include <errno.h>
-#include <stdio.h>
+#include <GL/gl.h>
+#include <malloc.h>
+#include <stdbool.h>
 
-typedef enum {
-    OGX_LOG_WARNING = 1 << 0,
-    OGX_LOG_CALL_LISTS = 1 << 1,
-    OGX_LOG_LIGHTING = 1 << 2,
-    OGX_LOG_TEXTURE = 1 << 3,
-    OGX_LOG_STENCIL = 1 << 4,
-} OgxLogMask;
+void _ogx_stencil_enabled(void);
+void _ogx_stencil_disabled(void);
+void _ogx_stencil_update(void);
+void _ogx_stencil_clear(void);
 
-extern OgxLogMask _ogx_log_mask;
+bool _ogx_stencil_setup_tev(int *stages, int *tex_coords, int tex_map);
 
-/* Warning are always emitted unless the mask is 0 */
-#define warning(format, ...) \
-    if (_ogx_log_mask) { \
-        SYS_Report(format "\n", ##__VA_ARGS__); \
-    }
+/* This callback should draw the current primitive with no color, lighting or
+ * textures */
+typedef void (*OgxStencilDrawCallback)(void *data);
+void _ogx_stencil_draw(OgxStencilDrawCallback callback, void *cb_data);
 
-#define debug(mask, format, ...) \
-    if (_ogx_log_mask & mask) { \
-        SYS_Report(format "\n", ##__VA_ARGS__); \
-    }
-
-void _ogx_log_init();
-
-#endif /* OGX_DEBUG_H */
+#endif /* OPENGX_STENCIL_H */

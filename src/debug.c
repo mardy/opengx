@@ -43,6 +43,7 @@ static const struct {
     { "call-lists", OGX_LOG_CALL_LISTS },
     { "lighting", OGX_LOG_LIGHTING },
     { "texture", OGX_LOG_TEXTURE },
+    { "stencil", OGX_LOG_STENCIL },
     { NULL, 0 },
 };
 
