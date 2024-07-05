@@ -73,8 +73,8 @@ char _ogx_log_level = 0;
 static GXTexObj s_zbuffer_texture;
 static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
 
-static void draw_arrays_general(int first, int count, int ne,
-                                int color_provide, int texen, bool loop);
+static void draw_arrays_general(uint8_t gxmode, int first, int count, int ne,
+                                int color_provide, int texen);
 
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
@@ -2179,34 +2179,8 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
             color_provide = 1;
     }
 
-    // Not using indices
-    GX_ClearVtxDesc();
-    if (glparamstate.cs.vertex_enabled)
-        GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    if (glparamstate.cs.normal_enabled)
-        GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
-    if (color_provide)
-        GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-    if (color_provide == 2)
-        GX_SetVtxDesc(GX_VA_CLR1, GX_DIRECT);
-    if (texen)
-        GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
-
-    // Using floats
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
-
-    // Invalidate vertex data as may have been modified by the user
-    GX_InvVtxCache();
-
-    bool loop = (mode == GL_LINE_LOOP);
-    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
-    draw_arrays_general(first, count, glparamstate.cs.normal_enabled,
-                        color_provide, texen, loop);
-    GX_End();
+    draw_arrays_general(gxmode, first, count, glparamstate.cs.normal_enabled,
+                        color_provide, texen);
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
@@ -2291,10 +2265,34 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     GX_End();
 }
 
-static void draw_arrays_general(int first, int count, int ne,
-                                int color_provide, int texen, bool loop)
+static void draw_arrays_general(uint8_t gxmode, int first, int count, int ne,
+                                int color_provide, int texen)
 {
+    // Not using indices
+    GX_ClearVtxDesc();
+    if (glparamstate.cs.vertex_enabled)
+        GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+    if (ne)
+        GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
+    if (color_provide)
+        GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+    if (color_provide == 2)
+        GX_SetVtxDesc(GX_VA_CLR1, GX_DIRECT);
+    if (texen)
+        GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
 
+    // Using floats
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+
+    // Invalidate vertex data as may have been modified by the user
+    GX_InvVtxCache();
+
+    bool loop = (gxmode == GL_LINE_LOOP);
+    GX_Begin(gxmode, GX_VTXFMT0, count + loop);
     int i;
     for (i = 0; i < count + loop; i++) {
         int j = i % count + first;
@@ -2322,6 +2320,7 @@ static void draw_arrays_general(int first, int count, int ne,
             GX_TexCoord2f32(value[0], value[1]);
         }
     }
+    GX_End();
 }
 
 void glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
