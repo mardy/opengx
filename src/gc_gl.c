@@ -1376,10 +1376,8 @@ void glLineWidth(GLfloat width)
 
 void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
 {
-    if ((red | green | blue | alpha) != 0)
-        GX_SetColorUpdate(GX_TRUE);
-    else
-        GX_SetColorUpdate(GX_FALSE);
+    glparamstate.color_update = (red | green | blue | alpha) != 0;
+    glparamstate.dirty.bits.dirty_color_update = 1;
 }
 
 /*
@@ -2116,6 +2114,10 @@ void _ogx_apply_state()
     // Set up the OGL state to GX state
     if (glparamstate.dirty.bits.dirty_z)
         GX_SetZMode(glparamstate.ztest, glparamstate.zfunc, glparamstate.zwrite & glparamstate.ztest);
+
+    if (glparamstate.dirty.bits.dirty_color_update) {
+        GX_SetColorUpdate(glparamstate.color_update ? GX_TRUE : GX_FALSE);
+    }
 
     if (glparamstate.dirty.bits.dirty_blend) {
         if (glparamstate.blendenabled)
