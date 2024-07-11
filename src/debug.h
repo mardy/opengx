@@ -32,8 +32,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OGX_DEBUG_H
 #define OGX_DEBUG_H
 
+#include <ogc/system.h>
 #include <errno.h>
-#include <stdio.h>
 
 typedef enum {
     OGX_LOG_WARNING = 1 << 0,
@@ -47,12 +47,12 @@ extern OgxLogMask _ogx_log_mask;
 /* Warning are always emitted unless the mask is 0 */
 #define warning(format, ...) \
     if (_ogx_log_mask) { \
-        fprintf(stderr, format "\n", ##__VA_ARGS__); \
+        SYS_Report(format "\n", ##__VA_ARGS__); \
     }
 
 #define debug(mask, format, ...) \
     if (_ogx_log_mask & mask) { \
-        fprintf(stderr, format "\n", ##__VA_ARGS__); \
+        SYS_Report(format "\n", ##__VA_ARGS__); \
     }
 
 void _ogx_log_init();
