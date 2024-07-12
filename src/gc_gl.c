@@ -1137,7 +1137,11 @@ void glClearColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha)
 }
 void glClearDepth(GLclampd depth)
 {
-    glparamstate.clearz = clampf_01(depth);
+    float clearz = clampf_01(depth);
+    if (clearz != glparamstate.clearz) {
+        glparamstate.clearz = clearz;
+        glparamstate.dirty.bits.dirty_clearz = 1;
+    }
 }
 
 // Clearing is simulated by rendering a big square with the depth value
@@ -1155,12 +1159,17 @@ void glClear(GLbitfield mask)
         GX_SetNumTexGens(1);
 
         /* Create a 1x1 Z-texture to set the desired depth */
-        /* Our z-buffer depth is 24 bits */
-        uint32_t depth = glparamstate.clearz * ((1 << 24) - 1);
-        s_zbuffer_texels[0] = 0xff; // ignored
-        s_zbuffer_texels[1] = (depth >> 16) & 0xff;
-        s_zbuffer_texels[32] = (depth >> 8) & 0xff;
-        s_zbuffer_texels[33] = depth & 0xff;
+        if (glparamstate.dirty.bits.dirty_clearz) {
+            /* Our z-buffer depth is 24 bits */
+            uint32_t depth = glparamstate.clearz * ((1 << 24) - 1);
+            s_zbuffer_texels[0] = 0xff; // ignored
+            s_zbuffer_texels[1] = (depth >> 16) & 0xff;
+            s_zbuffer_texels[32] = (depth >> 8) & 0xff;
+            s_zbuffer_texels[33] = depth & 0xff;
+            DCStoreRange(s_zbuffer_texels, sizeof(s_zbuffer_texels));
+            GX_InvalidateTexAll();
+            glparamstate.dirty.bits.dirty_clearz = 0;
+        }
         GX_LoadTexObj(&s_zbuffer_texture, GX_TEXMAP0);
         GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
     } else {
@@ -1217,7 +1226,14 @@ void glClear(GLbitfield mask)
     GX_End();
 
     GX_SetZTexture(GX_ZT_DISABLE, GX_TF_Z24X8, 0);
-    glparamstate.dirty.all = ~0;
+
+    glparamstate.dirty.bits.dirty_alphatest = 1;
+    glparamstate.dirty.bits.dirty_blend = 1;
+    glparamstate.dirty.bits.dirty_z = 1;
+    glparamstate.dirty.bits.dirty_color_update = 1;
+    glparamstate.dirty.bits.dirty_matrices = 1;
+    glparamstate.dirty.bits.dirty_cull = 1;
+    glparamstate.dirty.bits.dirty_texture_gen = 1;
 }
 
 void glDepthFunc(GLenum func)
