@@ -150,6 +150,7 @@ typedef struct glparams_
             unsigned dirty_alphatest : 1;
             unsigned dirty_blend : 1;
             unsigned dirty_z : 1;
+            unsigned dirty_clearz : 1;
             unsigned dirty_color_update : 1;
             unsigned dirty_matrices : 1;
             unsigned dirty_lighting : 1;
