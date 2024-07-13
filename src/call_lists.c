@@ -60,7 +60,7 @@ typedef struct
 
         GLenum cap; // glEnable, glDisable
 
-        GLenum mode; // glBegin
+        GLenum mode; // glBegin, glFrontFace
 
         struct LightParams {
             uint16_t light;
@@ -242,6 +242,9 @@ static void run_command(Command *cmd)
         break;
     case COMMAND_SCALE:
         glScalef(cmd->c.xyz.x, cmd->c.xyz.y, cmd->c.xyz.z);
+        break;
+    case COMMAND_FRONT_FACE:
+        glFrontFace(cmd->c.mode);
         break;
     }
 
@@ -432,6 +435,9 @@ bool _ogx_call_list_append(CommandType op, ...)
         command->c.rotate.x = va_arg(ap, double);
         command->c.rotate.y = va_arg(ap, double);
         command->c.rotate.z = va_arg(ap, double);
+        break;
+    case COMMAND_FRONT_FACE:
+        command->c.mode = va_arg(ap, GLenum);
         break;
     }
     va_end(ap);

@@ -58,6 +58,7 @@ typedef enum {
     COMMAND_TRANSLATE,
     COMMAND_ROTATE,
     COMMAND_SCALE,
+    COMMAND_FRONT_FACE,
 } CommandType;
 
 #define HANDLE_CALL_LIST(operation, ...) \
