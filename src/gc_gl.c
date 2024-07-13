@@ -722,6 +722,17 @@ void glCullFace(GLenum mode)
     glparamstate.dirty.bits.dirty_cull = 1;
 }
 
+void glFrontFace(GLenum mode)
+{
+    HANDLE_CALL_LIST(FRONT_FACE, mode);
+
+    bool frontcw = mode == GL_CW;
+    if (frontcw != glparamstate.frontcw) {
+        glparamstate.frontcw = frontcw;
+        glparamstate.dirty.bits.dirty_cull = 1;
+    }
+}
+
 void glBegin(GLenum mode)
 {
     // Just discard all the data!
