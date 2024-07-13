@@ -930,6 +930,11 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     glVertex3f(x / w, y / w, z / w);
 }
 
+void glVertex3fv(const GLfloat *v)
+{
+    glVertex3f(v[0], v[1], v[2]);
+}
+
 void glMatrixMode(GLenum mode)
 {
     switch (mode) {
