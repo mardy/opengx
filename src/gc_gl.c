@@ -1987,6 +1987,7 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
     GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
     if (glparamstate.dirty.bits.dirty_texture_gen) {
         setup_texture_gen();
+        glparamstate.dirty.bits.dirty_texture_gen = 0;
     }
 }
 
@@ -2189,8 +2190,15 @@ void _ogx_apply_state()
         NORMAL_UPDATE
     }
 
-    // All the state has been transferred, no need to update it again next time
-    glparamstate.dirty.all = 0;
+    /* Reset the updated bits to 0. We don't unconditionally reset everything
+     * to 0 because some states might still be dirty. */
+    glparamstate.dirty.bits.dirty_cull = 0;
+    glparamstate.dirty.bits.dirty_lighting = 0;
+    glparamstate.dirty.bits.dirty_matrices = 0;
+    glparamstate.dirty.bits.dirty_alphatest = 0;
+    glparamstate.dirty.bits.dirty_blend = 0;
+    glparamstate.dirty.bits.dirty_color_update = 0;
+    glparamstate.dirty.bits.dirty_z = 0;
 }
 
 static void draw_elements_general(uint8_t gxmode, int count, GLenum type,
