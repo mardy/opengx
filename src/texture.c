@@ -373,6 +373,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         ti.maxlevel = level;
         ti.width = wi;
         ti.height = he;
+        ti.wraps = ti.wrapt = GX_REPEAT;
     }
     if (ti.maxlevel < level)
         ti.maxlevel = level;
