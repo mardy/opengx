@@ -214,7 +214,6 @@ void ogx_initialize()
     glparamstate.zwrite = GX_TRUE; // unless test is enabled
 
     glparamstate.matrixmode = 1; // Modelview default mode
-    glparamstate.glcurtex = 0;   // Default texture is 0 (nonstardard)
     GX_SetNumChans(1);           // One modulation color (as glColor)
     glDisable(GL_TEXTURE_2D);
 
@@ -379,6 +378,9 @@ void ogx_initialize()
                   GX_TF_Z24X8, GX_CLAMP, GX_CLAMP, GX_FALSE);
     GX_InitTexObjLOD(&s_zbuffer_texture, GX_NEAR, GX_NEAR,
                      0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
+
+    /* Bind default texture */
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void _ogx_setup_2D_projection()
@@ -1969,7 +1971,7 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
     GX_SetTevColorOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GX_SetTevAlphaOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GX_SetTevOrder(stage, GX_TEXCOORD0, GX_TEXMAP0, channel);
-    GX_SetNumTexGens(1);
+    GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
     if (glparamstate.dirty.bits.dirty_texture_gen) {
         setup_texture_gen();
     }

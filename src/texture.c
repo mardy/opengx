@@ -445,11 +445,9 @@ void glBindTexture(GLenum target, GLuint texture)
         TEXTURE_RESERVE(texture_list[texture]);
     }
 
-    // If the texture has been initialized (data!=0) then load it to GX reg 0
+    /* We don't load the texture now, since its texels might not have been
+     * defined yet. We do this when setting up the texturing TEV stage. */
     glparamstate.glcurtex = texture;
-
-    if (TEXTURE_IS_USED(texture_list[texture]))
-        GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
 }
 
 void glTexImage3D(GLenum target, GLint level, GLint internalFormat,
