@@ -198,6 +198,7 @@ void ogx_initialize()
     glparamstate.glcullmode = GL_BACK;
     glparamstate.render_mode = GL_RENDER;
     glparamstate.cullenabled = 0;
+    glparamstate.color_update = true;
     glparamstate.alpha_func = GX_ALWAYS;
     glparamstate.alpha_ref = 0;
     glparamstate.alphatest_enabled = 0;
