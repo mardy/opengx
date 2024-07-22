@@ -1068,6 +1068,14 @@ void glMultMatrixf(const GLfloat *m)
         break;
     case 1:
         memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
+        float w = m[15];
+        float normalized[16];
+        if (w != 1.0 && w != 0.0) {
+            for (int i = 0; i < 16; i++) {
+                normalized[i] = m[i] / w;
+            }
+            m = normalized;
+        }
         gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)m);
         break;
     default:
