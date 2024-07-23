@@ -64,9 +64,9 @@ typedef enum {
 
 typedef struct glparams_
 {
-    Mtx44 modelview_matrix;
+    Mtx modelview_matrix;
     Mtx44 projection_matrix;
-    Mtx44 modelview_stack[MAX_MODV_STACK];
+    Mtx modelview_stack[MAX_MODV_STACK];
     Mtx44 projection_stack[MAX_PROJ_STACK];
     float texture_eye_plane_s[4];
     float texture_eye_plane_t[4];

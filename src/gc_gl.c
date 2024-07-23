@@ -78,9 +78,7 @@ static void draw_arrays_general(int first, int count, int ne,
 
 #define MODELVIEW_UPDATE                                           \
     {                                                              \
-        Mtx trans;                                                 \
-        model_view_matrix_to_gx(trans);                            \
-        GX_LoadPosMtxImm(trans, GX_PNMTX3);                        \
+        GX_LoadPosMtxImm(glparamstate.modelview_matrix, GX_PNMTX3); \
         GX_SetCurrentMtx(GX_PNMTX3);                               \
     }
 
@@ -96,9 +94,7 @@ static void draw_arrays_general(int first, int count, int ne,
         u8 type;                                                    \
         float near, far;                                            \
         get_projection_info(&type, &near, &far);                    \
-        for (int i = 0; i < 4; i++)                                 \
-            for (int j = 0; j < 4; j++)                             \
-                proj[i][j] = glparamstate.projection_matrix[j][i];  \
+        memcpy(proj, glparamstate.projection_matrix, sizeof(Mtx44));\
         float tmp = 1.0f / (far - near);                            \
         if (glparamstate.projection_matrix[3][3] != 0) {            \
             proj[2][2] = -tmp;                                      \
@@ -113,13 +109,8 @@ static void draw_arrays_general(int first, int count, int ne,
 
 #define NORMAL_UPDATE                                                  \
     {                                                                  \
-        int i, j;                                                      \
-        Mtx mvinverse, normalm, modelview;                             \
-        for (i = 0; i < 3; i++)                                        \
-            for (j = 0; j < 4; j++)                                    \
-                modelview[i][j] = glparamstate.modelview_matrix[j][i]; \
-                                                                       \
-        guMtxInverse(modelview, mvinverse);                            \
+        Mtx mvinverse, normalm;                                        \
+        guMtxInverse(glparamstate.modelview_matrix, mvinverse);        \
         guMtxTranspose(mvinverse, normalm);                            \
         GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
     }
@@ -138,8 +129,7 @@ static void get_projection_info(u8 *type, float *near, float *far)
     float A, B;
 
     A = glparamstate.projection_matrix[2][2];
-    /* Note that the matrix is transposed: this is row 2, column 3 */
-    B = glparamstate.projection_matrix[3][2];
+    B = glparamstate.projection_matrix[2][3];
 
     if (glparamstate.projection_matrix[3][3] == 0) {
         *type = GX_PERSPECTIVE;
@@ -626,15 +616,9 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
             glparamstate.lighting.lights[lnum].position[2] = params[2];
         }
         glparamstate.lighting.lights[lnum].position[3] = params[3];
-        {
-            float modv[3][4];
-            int i;
-            int j;
-            for (i = 0; i < 3; i++)
-                for (j = 0; j < 4; j++)
-                    modv[i][j] = glparamstate.modelview_matrix[j][i];
-            guVecMultiply(modv, (guVector *)glparamstate.lighting.lights[lnum].position, (guVector *)glparamstate.lighting.lights[lnum].position);
-        }
+        guVecMultiply(glparamstate.modelview_matrix,
+                      (guVector *)glparamstate.lighting.lights[lnum].position,
+                      (guVector *)glparamstate.lighting.lights[lnum].position);
         break;
     case GL_DIFFUSE:
         floatcpy(glparamstate.lighting.lights[lnum].diffuse_color, params, 4);
@@ -999,7 +983,7 @@ void glPopMatrix(void)
             set_error(GL_STACK_UNDERFLOW);
             return;
         }
-        memcpy(glparamstate.modelview_matrix, glparamstate.modelview_stack[glparamstate.cur_modv_mat], sizeof(Mtx44));
+        memcpy(glparamstate.modelview_matrix, glparamstate.modelview_stack[glparamstate.cur_modv_mat], sizeof(Mtx));
         glparamstate.cur_modv_mat--;
     default:
         break;
@@ -1025,7 +1009,7 @@ void glPushMatrix(void)
             return;
         }
         glparamstate.cur_modv_mat++;
-        memcpy(glparamstate.modelview_stack[glparamstate.cur_modv_mat], glparamstate.modelview_matrix, sizeof(Mtx44));
+        memcpy(glparamstate.modelview_stack[glparamstate.cur_modv_mat], glparamstate.modelview_matrix, sizeof(Mtx));
         break;
     default:
         break;
@@ -1035,10 +1019,10 @@ void glLoadMatrixf(const GLfloat *m)
 {
     switch (glparamstate.matrixmode) {
     case 0:
-        memcpy(glparamstate.projection_matrix, m, sizeof(Mtx44));
+        gl_matrix_to_gx44(m, glparamstate.projection_matrix);
         break;
     case 1:
-        memcpy(glparamstate.modelview_matrix, m, sizeof(Mtx44));
+        gl_matrix_to_gx(m, glparamstate.modelview_matrix);
         break;
     default:
         return;
@@ -1057,26 +1041,20 @@ void glMultMatrixd(const GLdouble *m)
 
 void glMultMatrixf(const GLfloat *m)
 {
-    Mtx44 curr;
-
     HANDLE_CALL_LIST(MULT_MATRIX, m);
 
     switch (glparamstate.matrixmode) {
     case 0:
-        memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)m);
+        Mtx44 mtx44;
+        gl_matrix_to_gx44(m, mtx44);
+        guMtx44Concat(glparamstate.projection_matrix, mtx44,
+                      glparamstate.projection_matrix);
         break;
     case 1:
-        memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        float w = m[15];
-        float normalized[16];
-        if (w != 1.0 && w != 0.0) {
-            for (int i = 0; i < 16; i++) {
-                normalized[i] = m[i] / w;
-            }
-            m = normalized;
-        }
-        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)m);
+        Mtx mtx;
+        gl_matrix_to_gx(m, mtx);
+        guMtxConcat(glparamstate.modelview_matrix, mtx,
+                    glparamstate.modelview_matrix);
         break;
     default:
         break;
@@ -1085,37 +1063,18 @@ void glMultMatrixf(const GLfloat *m)
 }
 void glLoadIdentity()
 {
-    float *mtrx;
-
     HANDLE_CALL_LIST(LOAD_IDENTITY);
 
     switch (glparamstate.matrixmode) {
     case 0:
-        mtrx = &glparamstate.projection_matrix[0][0];
+        guMtx44Identity(glparamstate.projection_matrix);
         break;
     case 1:
-        mtrx = &glparamstate.modelview_matrix[0][0];
+        guMtxIdentity(glparamstate.modelview_matrix);
         break;
     default:
         return;
     }
-
-    mtrx[0] = 1.0f;
-    mtrx[1] = 0.0f;
-    mtrx[2] = 0.0f;
-    mtrx[3] = 0.0f;
-    mtrx[4] = 0.0f;
-    mtrx[5] = 1.0f;
-    mtrx[6] = 0.0f;
-    mtrx[7] = 0.0f;
-    mtrx[8] = 0.0f;
-    mtrx[9] = 0.0f;
-    mtrx[10] = 1.0f;
-    mtrx[11] = 0.0f;
-    mtrx[12] = 0.0f;
-    mtrx[13] = 0.0f;
-    mtrx[14] = 0.0f;
-    mtrx[15] = 1.0f;
 
     glparamstate.dirty.bits.dirty_matrices = 1;
 }
@@ -1123,33 +1082,16 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
 {
     HANDLE_CALL_LIST(SCALE, x, y, z);
 
-    Mtx44 newmat;
-    Mtx44 curr;
-    newmat[0][0] = x;
-    newmat[0][1] = 0.0f;
-    newmat[0][2] = 0.0f;
-    newmat[0][3] = 0.0f;
-    newmat[1][0] = 0.0f;
-    newmat[1][1] = y;
-    newmat[1][2] = 0.0f;
-    newmat[1][3] = 0.0f;
-    newmat[2][0] = 0.0f;
-    newmat[2][1] = 0.0f;
-    newmat[2][2] = z;
-    newmat[2][3] = 0.0f;
-    newmat[3][0] = 0.0f;
-    newmat[3][1] = 0.0f;
-    newmat[3][2] = 0.0f;
-    newmat[3][3] = 1.0f;
-
     switch (glparamstate.matrixmode) {
     case 0:
-        memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        guMtxApplyScale(glparamstate.projection_matrix,
+                        glparamstate.projection_matrix,
+                        x, y, z);
         break;
     case 1:
-        memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        guMtxApplyScale(glparamstate.modelview_matrix,
+                        glparamstate.modelview_matrix,
+                        x, y, z);
         break;
     default:
         break;
@@ -1167,33 +1109,16 @@ void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
     HANDLE_CALL_LIST(TRANSLATE, x, y, z);
 
-    Mtx44 newmat;
-    Mtx44 curr;
-    newmat[0][0] = 1.0f;
-    newmat[0][1] = 0.0f;
-    newmat[0][2] = 0.0f;
-    newmat[0][3] = 0.0f;
-    newmat[1][0] = 0.0f;
-    newmat[1][1] = 1.0f;
-    newmat[1][2] = 0.0f;
-    newmat[1][3] = 0.0f;
-    newmat[2][0] = 0.0f;
-    newmat[2][1] = 0.0f;
-    newmat[2][2] = 1.0f;
-    newmat[2][3] = 0.0f;
-    newmat[3][0] = x;
-    newmat[3][1] = y;
-    newmat[3][2] = z;
-    newmat[3][3] = 1.0f;
-
     switch (glparamstate.matrixmode) {
     case 0:
-        memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        guMtxApplyTrans(glparamstate.projection_matrix,
+                        glparamstate.projection_matrix,
+                        x, y, z);
         break;
     case 1:
-        memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        guMtxApplyTrans(glparamstate.modelview_matrix,
+                        glparamstate.modelview_matrix,
+                        x, y, z);
         break;
     default:
         break;
@@ -1205,43 +1130,18 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
     HANDLE_CALL_LIST(ROTATE, angle, x, y, z);
 
-    angle *= (M_PI / 180.0f);
-    float c = cosf(angle);
-    float s = sinf(angle);
-    float t = 1.0f - c;
-    Mtx44 newmat;
-    Mtx44 curr;
-
-    float imod = 1.0f / sqrtf(x * x + y * y + z * z);
-    x *= imod;
-    y *= imod;
-    z *= imod;
-
-    newmat[0][0] = t * x * x + c;
-    newmat[0][1] = t * x * y + s * z;
-    newmat[0][2] = t * x * z - s * y;
-    newmat[0][3] = 0;
-    newmat[1][0] = t * x * y - s * z;
-    newmat[1][1] = t * y * y + c;
-    newmat[1][2] = t * y * z + s * x;
-    newmat[1][3] = 0;
-    newmat[2][0] = t * x * z + s * y;
-    newmat[2][1] = t * y * z - s * x;
-    newmat[2][2] = t * z * z + c;
-    newmat[2][3] = 0;
-    newmat[3][0] = 0;
-    newmat[3][1] = 0;
-    newmat[3][2] = 0;
-    newmat[3][3] = 1;
+    Mtx44 rot;
+    guVector axis = { x, y, z };
+    guMtxRotAxisDeg(rot, &axis, angle);
 
     switch (glparamstate.matrixmode) {
     case 0:
-        memcpy((float *)curr, &glparamstate.projection_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.projection_matrix[0][0], (float *)curr, (float *)newmat);
+        rot[3][0] = rot[3][1] = rot[3][2] = 0.0f;
+        rot[3][3] = 1.0f;
+        guMtx44Concat(glparamstate.projection_matrix, rot, glparamstate.projection_matrix);
         break;
     case 1:
-        memcpy((float *)curr, &glparamstate.modelview_matrix[0][0], sizeof(Mtx44));
-        gl_matrix_multiply(&glparamstate.modelview_matrix[0][0], (float *)curr, (float *)newmat);
+        guMtxConcat(glparamstate.modelview_matrix, rot, glparamstate.modelview_matrix);
         break;
     default:
         break;
@@ -2022,12 +1922,11 @@ static void setup_texture_gen()
     case GL_EYE_LINEAR:
         input_type = GX_TG_POS;
         matrix_src = GX_TEXMTX0;
-        model_view_matrix_to_gx(m);
         Mtx eye_plane;
         set_gx_mtx_rowv(0, eye_plane, glparamstate.texture_eye_plane_s);
         set_gx_mtx_rowv(1, eye_plane, glparamstate.texture_eye_plane_t);
         set_gx_mtx_row(2, eye_plane, 0.0f, 0.0f, 1.0f, 0.0f);
-        guMtxConcat(eye_plane, m, m);
+        guMtxConcat(eye_plane, glparamstate.modelview_matrix, m);
         GX_LoadTexMtxImm(m, GX_TEXMTX0, GX_MTX2x4);
         break;
     default:
@@ -2609,10 +2508,16 @@ void glGetFloatv(GLenum pname, GLfloat *params)
 {
     switch (pname) {
     case GL_MODELVIEW_MATRIX:
-        memcpy(params, glparamstate.modelview_matrix, sizeof(float) * 16);
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 4; j++)
+                params[j * 4 + i] = glparamstate.modelview_matrix[i][j];
+        params[3] = params[7] = params[11] = 0.0f;
+        params[15] = 1.0f;
         return;
     case GL_PROJECTION_MATRIX:
-        memcpy(params, glparamstate.projection_matrix, sizeof(float) * 16);
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                params[j * 4 + i] = glparamstate.modelview_matrix[i][j];
         return;
     default:
         return;
