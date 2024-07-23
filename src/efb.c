@@ -150,3 +150,12 @@ void _ogx_efb_restore_texobj(GXTexObj *texobj)
     GX_TexCoord2u8(1, 0);
     GX_End();
 }
+
+void _ogx_debug_dump_efb(const char *filename, int16_t width, int16_t height)
+{
+    uint8_t *texels = GX_GetTexObjData(&s_efb_texture);
+    if (texels) {
+        texels = MEM_PHYSICAL_TO_K0(texels);
+    }
+    _ogx_debug_dump_texture(filename, GX_TF_RGBA8, width, height, texels);
+}

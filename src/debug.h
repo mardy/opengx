@@ -59,4 +59,8 @@ extern OgxLogMask _ogx_log_mask;
 
 void _ogx_log_init();
 
+void _ogx_debug_dump_efb(const char *filename, int16_t width, int16_t height);
+void _ogx_debug_dump_texture(const char *filename, uint8_t format,
+                             int16_t width, int16_t height, void *data);
+
 #endif /* OGX_DEBUG_H */
