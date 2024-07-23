@@ -220,6 +220,27 @@ static inline void set_gx_mtx_row(int row, Mtx m,
     m[row][3] = c3;
 }
 
+static inline void gl_matrix_to_gx(const GLfloat *source, Mtx mv)
+{
+    float w = source[15];
+    if (w != 1.0 && w != 0.0) {
+        for (int i = 0; i < 16; i++) {
+            mv[i%4][i/4] = source[i] / w;
+        }
+    } else {
+        for (int i = 0; i < 16; i++) {
+            mv[i%4][i/4] = source[i];
+        }
+    }
+}
+
+static inline void gl_matrix_to_gx44(const GLfloat *source, Mtx44 mv)
+{
+    for (int i = 0; i < 16; i++) {
+        mv[i%4][i/4] = source[i];
+    }
+}
+
 /* Set up the matrices for 2D pixel-perfect drawing */
 void _ogx_setup_2D_projection(void);
 
