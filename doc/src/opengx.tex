@@ -417,6 +417,62 @@ Call lists are mostly implemented in software, storing the command opcodes and p
 The HANDLE\_CALL\_LIST macro is called at the beginning of those GL functions that can be stored into a call list. It takes care of adding the operation to the active call list (if there's one) minimizing the visual impact of call lists on the code base.
 
 
+\subsection {Stencil test}
+
+The stencil test allows to discard individual fragments depending on the outcome of a comparison between the value stored in the stencil buffer for that fragment and a reference value. The compared values can also be masked with a bitmask before comparison, and the generation of the stencil buffer involves drawing primitives and performing logical and arithmetical operations on the drawn stencil pixels. The stencil test is typically used to render shadows and reflections. Unfortunately, nor the GameCube hardware or the GX APIs provide any support for the stencil test, so we have to emulate it, partially in software, partially with an additional TEV stage.
+
+\subsubsection {Discarding fragments}
+
+Let's first see how opengx discards fragments which don't pass the stencil test; for the time being, let's assume that we have managed to build a stencil buffer (in opengx it can be 4 or 8 bits wide, with 4 being the default) and focus only on how to build a TEV stage which does the comparison and discards the fragment. We will be setting up the TEV stage to operate in \emph{compare mode}, where the inputs are combined according to this formula:
+
+    $$ output = d + ((a OP b) ? c : 0 $$
+
+and $OP$ will be either “equal” (\lstinline{GX_TEV_COMP_A8_EQ}) or “greater than” (\lstinline{GX_TEV_COMP_A8_GT}). Our goal is to decide whether a fragment will be drawn or not, so we'll be using the alpha channel as the output, set $d$ to zero and $c$ to the alpha from the previous stage: in this way, depending on the result of the comparison $a OP b$ (we'll see how to set $a$ and $b$ later below), we can control whether display the fragment with its original alpha, or not display it at all.
+
+Note that we'll have to make the Z buffer operate per fragment and not per vertex (by setting \lstinline{GX_SetZCompLoc(GX_DISABLE)}) and set the alpha compare function (\fname{GX\_SetAlphaCompare}) to exclude all fragments having an alpha value of zero: this is important so that the discarded fragments won't update the Z-buffer.
+
+The next problem we have to solve is setting up a texture coordinate generation that, once the stencil texture is loaded in our TEV stage, would allow us to read its pixels using screen coordinates; in other words, we want to make it so that for every fragment processed in this stage, its texel would coincide with a screen pixel. This can be achieved by setting up a texture coordinate generation matrix that multiplies the primitive's vector's \emph{position} and transforms that to the exact x and y coordinates that this vertex will occupy on the screen. Such a matrix can be built by concatenating the movel-view matrix with the projection matrix, but we must take into account that such a matrix will transform vertex coordinates into the \lstinline{[-1,1]x[-1,1]} range whereas the TEV expects texture coordinates to be in the \lstinline{[0,1]x[0,1]} range, so we have to concatenate an additional matrix to translate and scale the coordinates by half.
+
+Another issue is how to actually implement the comparison, since the OpenGL specification supports all kinds of arithmetical comparisons, whereas the TEV only supports comparing for equality (\lstinline{GX_TEV_COMP_A8_EQ}) and strict "greater than" (\lstinline{GX_TEV_COMP_A8_GT}); however, since we know that we are operating on integer values, most of this operations can be emulated by inverting the order of the operands in the TEV, or by altering the reference value by ±1, as shown in Figure~\ref{table:stencil1}.
+
+\begin{figure}[ht]
+\centering
+
+\begin{tabular}{|l|l|l|}
+\hline
+    {GL comparison} & {Formula} & {GX comparison} \\
+\hline
+    GL\_EQUAL & $a = b$ & $a = b$ \\
+\hline
+	GL\_GREATER & $a > b$ & $a > b$\\
+\hline
+	GL\_LESS & $a < b$ & $b > a$\\
+\hline
+	GL\_GEQUAL & $a \geq b$ & $a > b - 1$ \\
+\hline
+	GL\_LEQUAL & $a \leq b$ & $b + 1 > a$ \\
+\hline
+\end{tabular}
+\caption{Mapping OpenGL stencil comparisons into the TEV. $a$ is the value from the stencil texture, and $b$ is the reference value}
+\label{table:stencil1}
+\end {figure}
+
+What is missing from that figure is the comparison for not equality (\lstinline{GL_NOTEQUAL}), which simply cannot be implemented using the comparisons provided by the TEV engine. For that reason, if the comparison mode is \lstinline{GL_NOTEQUAL}, opengx builds a special stencil texture in software, whose pixels are set to 1 if the stencil buffer value is different from reference value and 0 otherwise, and then uses the \lstinline{GX_TEV_COMP_A8_GT} (greater than) comparison on this texture's pixels.
+
+Note that while building the stencil texture in software sounds like a non optimal decision (and indeed it is), opengx has to do it in any case, even for those comparisons from Figure~\ref{table:stencil1} supported by the TEV, in order to support the masking step described in the OpenGL specification: that is, OpenGL is not directly comparing the stencil buffer value with the reference value, but both values are \emph{bitwise AND'ed} with a bitmask given by the programmer. This means that before drawing a primitive on which the stencil test must run, opengx will read the stencil buffer and generate a stencil texture that can be used with the comparisons described above. Using the \fname{GX\_ReadBoundingBox} function allows us to minimize the work by updating only the area that changed.
+
+\subsubsection {Drawing the stencil buffer}
+
+When drawing to the stencil buffer, special care must be taken to avoid making this drawing visible, so before performing a stencil draw operation opengx saves the current contents of the EFB to a texture, then loads the previous contents of the stencil buffer into the EFB, perform the stencil rendering, then saves the EFB to the stencil buffer and finally restores the previous contents of the EFB (the ones containing the visible graphics). This is clearly not optimal when the sequence of drawing operations to the screen is intertwined with drawing operations to the stencil buffer (as is often the case), but unfortunately there's no way around this. We could still use the \fname{GX\_ReadBoundingBox} function to keep track of the areas that need saving and restoring, so there might be some room for optimization here.
+
+OpenGL specifies several logical and arithmetical operations that can be applied when rendering to the stencil buffer, with the most used being by far \lstinline{GL_KEEP} and \lstinline{GL_REPLACE}: the former is trivial to implement, since it just means that no drawing must happen on the stencil buffer; the latter is used to replace the stencil buffer's value with the reference value, so this is also not hard to realize by rendering the primitive with no lighting, no texturing, and just fixing the drawing color to the reference value. The \lstinline{GL_ZERO} operation is also easy to implement, being a special case of \lstinline{GL_REPLACE} where instead of using the reference colour we just draw total black. Other operations are not currently implemented (see the \ref{sec:stencillimitations} section for details).
+
+\subsubsection {Limitations}
+\label{sec:stencillimitations}
+
+The stencil drawing operations \lstinline{GL_INCR}, \lstinline{GL_DECR}, \lstinline{GL_INCR_WRAP}, \lstinline{GL_DECR_WRAP} and \lstinline{GL_INVERT} are not implemented. It might be possible that at least some of them could be implemented in the hardware by setting an appropriate blending mode. Another posibility is to make these functions not directly render on the stencil buffer, but on yet another offscreen buffer, and then process the results in software. But none of these solutions have been implemented so far, given how rarely these operations are used (at least in public source code indexed by GitHub).
+
+
 \subsection {Selection mode}
 
 GL selection mode, also known as "picking mode", is typically used in applications to determine which objects are rendered at a certain screen position, in order to implement mouse interactions. When selection mode is active, drawing primitives do not result in any pixels (or even Z-pixels) being drawn, but instead produce a stack containing the names of the object which would have been drawn.
