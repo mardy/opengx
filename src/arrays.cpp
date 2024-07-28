@@ -35,12 +35,15 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <limits>
 #include <variant>
 
+typedef float Pos3f[3];
+
 struct GenericDataReaderBase {
     GenericDataReaderBase(int stride, int element_size):
         given_stride(stride), element_size(element_size) {}
 
     virtual void read_float(int index, float *elements) = 0;
     virtual void read_color(int index, GXColor *color) = 0;
+    virtual void read_pos3f(int index, Pos3f pos) = 0;
 
     void set_num_elements(int n) {
         num_elements = n;
@@ -98,6 +101,23 @@ struct GenericDataReader: public GenericDataReaderBase {
             read_color_component(ptr++) : 255;
     }
 
+    void read_pos3f(int index, Pos3f pos) override {
+        const T *ptr = elemAt(index);
+        pos[0] = *ptr++;
+        pos[1] = *ptr++;
+        if (num_elements >= 3) {
+            pos[2] = *ptr++;
+            if (num_elements == 4) {
+                float w = *ptr++;
+                pos[0] /= w;
+                pos[1] /= w;
+                pos[2] /= w;
+            }
+        } else {
+            pos[2] = 0.0f;
+        }
+    }
+
     const char *data;
 };
 
@@ -145,6 +165,13 @@ void _ogx_array_reader_read_float(OgxArrayReader *reader,
 {
     GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
     r->read_float(index, elements);
+}
+
+void _ogx_array_reader_read_pos3f(OgxArrayReader *reader,
+                                  int index, float *pos)
+{
+    GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
+    r->read_pos3f(index, pos);
 }
 
 void _ogx_array_reader_read_color(OgxArrayReader *reader,
