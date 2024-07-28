@@ -37,6 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 typedef float Pos3f[3];
 typedef float Norm3f[3];
+typedef float Tex2f[2];
 
 struct GenericDataReaderBase {
     GenericDataReaderBase(int stride, int element_size):
@@ -46,6 +47,7 @@ struct GenericDataReaderBase {
     virtual void read_color(int index, GXColor *color) = 0;
     virtual void read_pos3f(int index, Pos3f pos) = 0;
     virtual void read_norm3f(int index, Norm3f norm) = 0;
+    virtual void read_tex2f(int index, Tex2f tex) = 0;
 
     void set_num_elements(int n) {
         num_elements = n;
@@ -127,6 +129,16 @@ struct GenericDataReader: public GenericDataReaderBase {
         norm[2] = *ptr++;
     }
 
+    void read_tex2f(int index, Tex2f tex) override {
+        const T *ptr = elemAt(index);
+        tex[0] = *ptr++;
+        if (num_elements >= 2) {
+            tex[1] = *ptr++;
+        } else {
+            tex[1] = 0.0f;
+        }
+    }
+
     const char *data;
 };
 
@@ -188,6 +200,13 @@ void _ogx_array_reader_read_norm3f(OgxArrayReader *reader,
 {
     GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
     r->read_norm3f(index, norm);
+}
+
+void _ogx_array_reader_read_tex2f(OgxArrayReader *reader,
+                                  int index, float *tex)
+{
+    GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
+    r->read_tex2f(index, tex);
 }
 
 void _ogx_array_reader_read_color(OgxArrayReader *reader,
