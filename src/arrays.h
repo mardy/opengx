@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define OPENGX_ARRAYS_H
 
 #include <GL/gl.h>
+#include <gccore.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -49,6 +50,8 @@ void _ogx_array_reader_init(OgxArrayReader *reader,
 void _ogx_array_reader_set_num_elements(OgxArrayReader *reader, int n);
 void _ogx_array_reader_read_float(OgxArrayReader *reader,
                                   int index, float *elements);
+void _ogx_array_reader_read_color(OgxArrayReader *reader,
+                                  int index, GXColor *color);
 
 #ifdef __cplusplus
 } // extern C

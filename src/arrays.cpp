@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "debug.h"
 
+#include <limits>
 #include <variant>
 
 struct GenericDataReaderBase {
@@ -39,6 +40,7 @@ struct GenericDataReaderBase {
         given_stride(stride), element_size(element_size) {}
 
     virtual void read_float(int index, float *elements) = 0;
+    virtual void read_color(int index, GXColor *color) = 0;
 
     void set_num_elements(int n) {
         num_elements = n;
@@ -60,18 +62,40 @@ struct GenericDataReader: public GenericDataReaderBase {
         return given_stride != 0 ? given_stride : (sizeof(T) * num_elements);
     }
 
+    const T *elemAt(int index) {
+        int stride = compute_stride();
+        return reinterpret_cast<const T*>(data + stride * index);
+    }
+
     template <typename R>
     void read(int index, R *elements) {
-        int stride = compute_stride();
-        const T *ptr = reinterpret_cast<const T*>(data + stride * index);
+        const T *ptr = elemAt(index);
         for (int i = 0; i < num_elements; i++) {
             elements[i] = *ptr;
             ptr++;
         }
     }
 
+    uint8_t read_color_component(const T *ptr) {
+        if constexpr (std::numeric_limits<T>::is_integer) {
+            return sizeof(T) > 1 ?
+                (*ptr * 255 / std::numeric_limits<T>::max()) : *ptr;
+        } else {  // floating-point type
+            return *ptr * 255.0f;
+        }
+    }
+
     void read_float(int index, float *elements) override {
         read(index, elements);
+    }
+
+    void read_color(int index, GXColor *color) override {
+        const T *ptr = elemAt(index);
+        color->r = read_color_component(ptr++);
+        color->g = read_color_component(ptr++);
+        color->b = read_color_component(ptr++);
+        color->a = num_elements == 4 ?
+            read_color_component(ptr++) : 255;
     }
 
     const char *data;
@@ -81,6 +105,7 @@ using ReaderVariant = std::variant<OgxArrayReader,
                                    GenericDataReaderBase,
                                    GenericDataReader<float>,
                                    GenericDataReader<double>,
+                                   GenericDataReader<uint8_t>,
                                    GenericDataReader<int16_t>,
                                    GenericDataReader<int32_t>>;
 
@@ -89,6 +114,9 @@ void _ogx_array_reader_init(OgxArrayReader *reader,
                                   GLenum type, int stride)
 {
     switch (type) {
+    case GL_UNSIGNED_BYTE:
+        new (reader) GenericDataReader<int8_t>(data, stride);
+        break;
     case GL_SHORT:
         new (reader) GenericDataReader<int16_t>(data, stride);
         break;
@@ -117,4 +145,11 @@ void _ogx_array_reader_read_float(OgxArrayReader *reader,
 {
     GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
     r->read_float(index, elements);
+}
+
+void _ogx_array_reader_read_color(OgxArrayReader *reader,
+                                  int index, GXColor *color)
+{
+    GenericDataReaderBase *r = reinterpret_cast<GenericDataReaderBase *>(reader);
+    r->read_color(index, color);
 }
