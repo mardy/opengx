@@ -54,6 +54,8 @@ void _ogx_array_reader_read_pos3f(OgxArrayReader *reader,
                                   int index, float *pos);
 void _ogx_array_reader_read_norm3f(OgxArrayReader *reader,
                                    int index, float *norm);
+void _ogx_array_reader_read_tex2f(OgxArrayReader *reader,
+                                  int index, float *tex);
 void _ogx_array_reader_read_color(OgxArrayReader *reader,
                                   int index, GXColor *color);
 
