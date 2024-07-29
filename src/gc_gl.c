@@ -2139,25 +2139,25 @@ static void draw_elements_general(uint8_t gxmode, int count, GLenum type,
     for (int i = 0; i < count + loop; i++) {
         int index = read_index(indices, type, i % count);
         float value[4];
-        _ogx_array_reader_read_float(&glparamstate.vertex_array, index, value);
+        _ogx_array_reader_read_pos3f(&glparamstate.vertex_array, index, value);
 
         GX_Position3f32(value[0], value[1], value[2]);
 
         if (ne) {
-            _ogx_array_reader_read_float(&glparamstate.normal_array, index, value);
+            _ogx_array_reader_read_norm3f(&glparamstate.normal_array, index, value);
             GX_Normal3f32(value[0], value[1], value[2]);
         }
 
         if (color_provide) {
-            _ogx_array_reader_read_float(&glparamstate.color_array, index, value);
-            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
-            GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+            GXColor color;
+            _ogx_array_reader_read_color(&glparamstate.color_array, index, &color);
+            GX_Color4u8(color.r, color.g, color.b, color.a);
             if (color_provide == 2)
-                GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+                GX_Color4u8(color.r, color.g, color.b, color.a);
         }
 
         if (texen) {
-            _ogx_array_reader_read_float(&glparamstate.texcoord_array, index, value);
+            _ogx_array_reader_read_tex2f(&glparamstate.texcoord_array, index, value);
             GX_TexCoord2f32(value[0], value[1]);
         }
     }
@@ -2300,26 +2300,26 @@ static void draw_arrays_general(uint8_t gxmode, int first, int count, int ne,
     for (i = 0; i < count + loop; i++) {
         int j = i % count + first;
         float value[4];
-        _ogx_array_reader_read_float(&glparamstate.vertex_array, j, value);
+        _ogx_array_reader_read_pos3f(&glparamstate.vertex_array, j, value);
         GX_Position3f32(value[0], value[1], value[2]);
 
         if (ne) {
-            _ogx_array_reader_read_float(&glparamstate.normal_array, j, value);
+            _ogx_array_reader_read_norm3f(&glparamstate.normal_array, j, value);
             GX_Normal3f32(value[0], value[1], value[2]);
         }
 
         // If the data stream doesn't contain any color data just
         // send the current color (the last glColor* call)
         if (color_provide) {
-            _ogx_array_reader_read_float(&glparamstate.color_array, j, value);
-            unsigned char arr[4] = { value[0] * 255.0f, value[1] * 255.0f, value[2] * 255.0f, value[3] * 255.0f };
-            GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+            GXColor color;
+            _ogx_array_reader_read_color(&glparamstate.color_array, j, &color);
+            GX_Color4u8(color.r, color.g, color.b, color.a);
             if (color_provide == 2)
-                GX_Color4u8(arr[0], arr[1], arr[2], arr[3]);
+                GX_Color4u8(color.r, color.g, color.b, color.a);
         }
 
         if (texen) {
-            _ogx_array_reader_read_float(&glparamstate.texcoord_array, j, value);
+            _ogx_array_reader_read_tex2f(&glparamstate.texcoord_array, j, value);
             GX_TexCoord2f32(value[0], value[1]);
         }
     }
