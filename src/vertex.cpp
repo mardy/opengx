@@ -69,18 +69,17 @@ void glVertex3f(GLfloat x, GLfloat y, GLfloat z)
         glparamstate.imm_mode.current_vertices = (VertexData*)new_buffer;
     }
 
-    // GL_T2F_C4F_N3F_V3F
-    float *vert = glparamstate.imm_mode.current_vertices[glparamstate.imm_mode.current_numverts++];
-    vert[0] = glparamstate.imm_mode.current_texcoord[0];
-    vert[1] = glparamstate.imm_mode.current_texcoord[1];
+    VertexData *vert = &glparamstate.imm_mode.current_vertices[glparamstate.imm_mode.current_numverts++];
+    vert->tex[0] = glparamstate.imm_mode.current_texcoord[0];
+    vert->tex[1] = glparamstate.imm_mode.current_texcoord[1];
 
-    floatcpy(vert + 2, glparamstate.imm_mode.current_color, 4);
+    vert->color = gxcol_new_fv(glparamstate.imm_mode.current_color);
 
-    floatcpy(vert + 6, glparamstate.imm_mode.current_normal, 3);
+    floatcpy(vert->norm, glparamstate.imm_mode.current_normal, 3);
 
-    vert[9] = x;
-    vert[10] = y;
-    vert[11] = z;
+    vert->pos[0] = x;
+    vert->pos[1] = y;
+    vert->pos[2] = z;
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
