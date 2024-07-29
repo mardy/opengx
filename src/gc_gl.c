@@ -786,18 +786,22 @@ void glBegin(GLenum mode)
 void glEnd()
 {
     struct client_state cs_backup = glparamstate.cs;
-    float *base = &glparamstate.imm_mode.current_vertices[0][0];
-    int stride = 12 * sizeof(float);
-    _ogx_array_reader_init(&glparamstate.texcoord_array, base, GL_FLOAT, stride);
+    VertexData *base = glparamstate.imm_mode.current_vertices;
+    int stride = sizeof(VertexData);
+    _ogx_array_reader_init(&glparamstate.texcoord_array, base->tex,
+                           GL_FLOAT, stride);
     _ogx_array_reader_set_num_elements(&glparamstate.texcoord_array, 2);
-    base += 2;
-    _ogx_array_reader_init(&glparamstate.color_array, base, GL_FLOAT, stride);
+
+    _ogx_array_reader_init(&glparamstate.color_array, &base->color,
+                           GL_UNSIGNED_BYTE, stride);
     _ogx_array_reader_set_num_elements(&glparamstate.color_array, 4);
-    base += 4;
-    _ogx_array_reader_init(&glparamstate.normal_array, base, GL_FLOAT, stride);
+
+    _ogx_array_reader_init(&glparamstate.normal_array, base->norm,
+                           GL_FLOAT, stride);
     _ogx_array_reader_set_num_elements(&glparamstate.normal_array, 3);
-    base += 3;
-    _ogx_array_reader_init(&glparamstate.vertex_array, base, GL_FLOAT, stride);
+
+    _ogx_array_reader_init(&glparamstate.vertex_array, base->pos,
+                           GL_FLOAT, stride);
     _ogx_array_reader_set_num_elements(&glparamstate.vertex_array, 3);
     glparamstate.cs.texcoord_enabled = 1;
     glparamstate.cs.color_enabled = glparamstate.imm_mode.has_color;
