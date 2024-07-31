@@ -139,6 +139,9 @@ void _ogx_efb_restore_texobj(GXTexObj *texobj)
     GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_OR, GX_ALWAYS, 0);
     glparamstate.dirty.bits.dirty_alphatest = 1;
 
+    GX_SetColorUpdate(GX_TRUE);
+    glparamstate.dirty.bits.dirty_color_update = 1;
+
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
     GX_Position2u16(0, 0);
     GX_TexCoord2u8(0, 0);
