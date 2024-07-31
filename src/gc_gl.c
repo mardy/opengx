@@ -2223,7 +2223,6 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         texen = texen && glparamstate.texture_enabled;
     }
 
-    //should_draw = 0;
     if (should_draw) {
         int color_provide = 0;
         if (glparamstate.cs.color_enabled &&
