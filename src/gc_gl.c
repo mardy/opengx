@@ -122,13 +122,16 @@ static inline void update_projection_matrix()
     get_projection_info(&type, &near, &far);
     memcpy(proj, glparamstate.projection_matrix, sizeof(Mtx44));
     float tmp = 1.0f / (far - near);
+    /* TODO: also use the polygon_offset_factor variable */
+    float zoffset = glparamstate.polygon_offset_fill ?
+        (glparamstate.polygon_offset_units * 0.00001f) : 0.0;
     if (glparamstate.projection_matrix[3][3] != 0) {
         proj[2][2] = -tmp;
-        proj[2][3] = -far * tmp;
+        proj[2][3] = -far * tmp + zoffset;
         GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
     } else {
         proj[2][2] = -near * tmp;
-        proj[2][3] = -near * far * tmp;
+        proj[2][3] = -near * far * tmp + zoffset;
         GX_LoadProjectionMtx(proj, GX_PERSPECTIVE);
     }
 }
@@ -461,6 +464,10 @@ void glEnable(GLenum cap)
         glparamstate.lighting.lights[cap - GL_LIGHT0].enabled = 1;
         glparamstate.dirty.bits.dirty_lighting = 1;
         break;
+    case GL_POLYGON_OFFSET_FILL:
+        glparamstate.polygon_offset_fill = 1;
+        glparamstate.dirty.bits.dirty_matrices = 1;
+        break;
     default:
         break;
     }
@@ -522,6 +529,10 @@ void glDisable(GLenum cap)
     case GL_LIGHT3:
         glparamstate.lighting.lights[cap - GL_LIGHT0].enabled = 0;
         glparamstate.dirty.bits.dirty_lighting = 1;
+        break;
+    case GL_POLYGON_OFFSET_FILL:
+        glparamstate.polygon_offset_fill = 0;
+        glparamstate.dirty.bits.dirty_matrices = 1;
         break;
     default:
         break;
@@ -1293,6 +1304,13 @@ void glPointSize(GLfloat size)
 void glLineWidth(GLfloat width)
 {
     GX_SetLineWidth((unsigned int)(width * 16), GX_TO_ZERO);
+}
+
+void glPolygonOffset(GLfloat factor, GLfloat units)
+{
+    glparamstate.polygon_offset_factor = factor;
+    glparamstate.polygon_offset_units = units;
+    glparamstate.dirty.bits.dirty_matrices = 1;
 }
 
 void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
@@ -2527,7 +2545,6 @@ void glPopAttrib(void) {}
 void glPushClientAttrib(GLbitfield mask) {}
 void glPopClientAttrib(void) {}
 void glPolygonMode(GLenum face, GLenum mode) {}
-void glPolygonOffset(GLfloat offset, GLfloat factor) {}
 void glReadBuffer(GLenum mode) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
 

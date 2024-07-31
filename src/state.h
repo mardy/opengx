@@ -88,6 +88,7 @@ typedef struct glparams_
     unsigned char matrixmode;
     unsigned char frontcw, cullenabled;
     bool color_update;
+    bool polygon_offset_fill;
     uint8_t alpha_func, alpha_ref, alphatest_enabled;
     uint16_t texture_env_mode;
     /* There should be 4 of these (for S, T, R, Q) but GX uses a single
@@ -100,6 +101,8 @@ typedef struct glparams_
     int draw_count;
     GXColor clear_color;
     float clearz;
+    float polygon_offset_factor;
+    float polygon_offset_units;
 
     GLuint *name_stack;
     GLuint *select_buffer;
