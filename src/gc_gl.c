@@ -83,44 +83,11 @@ static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
 static void draw_arrays_general(DrawMode gxmode, int first, int count, int ne,
                                 int color_provide, int texen);
 
-#define MODELVIEW_UPDATE                                           \
-    {                                                              \
-        GX_LoadPosMtxImm(glparamstate.modelview_matrix, GX_PNMTX3); \
-        GX_SetCurrentMtx(GX_PNMTX3);                               \
-    }
-
-/* OpenGL's projection matrix transform the scene into a clip space where all
- * the coordinates lie in the range [-1, 1]. Nintendo's GX, however, for the z
- * coordinates expects a range of [-1, 0], so the projection matrix needs to be
- * adjusted. We do that by extracting the near and far planes from the GL
- * projection matrix and by recomputing the related two matrix entries
- * according to the formulas used by guFrustum() and guOrtho(). */
-#define PROJECTION_UPDATE                                           \
-    {                                                               \
-        Mtx44 proj;                                                 \
-        u8 type;                                                    \
-        float near, far;                                            \
-        get_projection_info(&type, &near, &far);                    \
-        memcpy(proj, glparamstate.projection_matrix, sizeof(Mtx44));\
-        float tmp = 1.0f / (far - near);                            \
-        if (glparamstate.projection_matrix[3][3] != 0) {            \
-            proj[2][2] = -tmp;                                      \
-            proj[2][3] = -far * tmp;                                \
-            GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);            \
-        } else {                                                    \
-            proj[2][2] = -near * tmp;                               \
-            proj[2][3] = -near * far * tmp;                         \
-            GX_LoadProjectionMtx(proj, GX_PERSPECTIVE);             \
-        }                                                           \
-    }
-
-#define NORMAL_UPDATE                                                  \
-    {                                                                  \
-        Mtx mvinverse, normalm;                                        \
-        guMtxInverse(glparamstate.modelview_matrix, mvinverse);        \
-        guMtxTranspose(mvinverse, normalm);                            \
-        GX_LoadNrmMtxImm(normalm, GX_PNMTX3);                          \
-    }
+static inline void update_modelview_matrix()
+{
+    GX_LoadPosMtxImm(glparamstate.modelview_matrix, GX_PNMTX3);
+    GX_SetCurrentMtx(GX_PNMTX3);
+}
 
 /* Deduce the projection type (perspective vs orthogonal) and the values of the
  * near and far clipping plane from the projection matrix. */
@@ -144,6 +111,40 @@ static void get_projection_info(u8 *type, float *near, float *far)
         *near = (B + 1.0f) / A;
         *far = (B - 1.0f) / A;
     }
+}
+
+static inline void update_projection_matrix()
+{
+    /* OpenGL's projection matrix transform the scene into a clip space where
+     * all the coordinates lie in the range [-1, 1]. Nintendo's GX, however,
+     * for the z coordinates expects a range of [-1, 0], so the projection
+     * matrix needs to be adjusted. We do that by extracting the near and far
+     * planes from the GL projection matrix and by recomputing the related two
+     * matrix entries according to the formulas used by guFrustum() and
+     * guOrtho(). */
+    Mtx44 proj;
+    u8 type;
+    float near, far;
+    get_projection_info(&type, &near, &far);
+    memcpy(proj, glparamstate.projection_matrix, sizeof(Mtx44));
+    float tmp = 1.0f / (far - near);
+    if (glparamstate.projection_matrix[3][3] != 0) {
+        proj[2][2] = -tmp;
+        proj[2][3] = -far * tmp;
+        GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
+    } else {
+        proj[2][2] = -near * tmp;
+        proj[2][3] = -near * far * tmp;
+        GX_LoadProjectionMtx(proj, GX_PERSPECTIVE);
+    }
+}
+
+static inline void update_normal_matrix()
+{
+    Mtx mvinverse, normalm;
+    guMtxInverse(glparamstate.modelview_matrix, mvinverse);
+    guMtxTranspose(mvinverse, normalm);
+    GX_LoadNrmMtxImm(normalm, GX_PNMTX3);
 }
 
 static void setup_cull_mode()
@@ -403,7 +404,7 @@ void _ogx_setup_3D_projection()
     /* Assume that the modelview matrix has already been updated to GX_PNMTX3
      */
     GX_SetCurrentMtx(GX_PNMTX3);
-    PROJECTION_UPDATE
+    update_projection_matrix();
 }
 
 void glEnable(GLenum cap)
@@ -2104,11 +2105,11 @@ void _ogx_apply_state()
 
     // Matrix stuff
     if (glparamstate.dirty.bits.dirty_matrices) {
-        MODELVIEW_UPDATE
-        PROJECTION_UPDATE
+        update_modelview_matrix();
+        update_projection_matrix();
     }
     if (glparamstate.dirty.bits.dirty_matrices | glparamstate.dirty.bits.dirty_lighting) {
-        NORMAL_UPDATE
+        update_normal_matrix();
     }
 
     /* Reset the updated bits to 0. We don't unconditionally reset everything
