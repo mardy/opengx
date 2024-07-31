@@ -57,6 +57,7 @@ static struct _dirty_area {
     uint16_t left;
     uint16_t right;
 } s_dirty_area = { 0, 0, 0, 0 };
+static int s_stencil_count_updated = 0;
 
 static void check_bounding_box()
 {
@@ -147,8 +148,12 @@ static inline bool tev_stage_needed(TevComparisonType comp_type)
  */
 static void update_stencil_texture()
 {
-    if (!s_stencil_texture_needs_update) return;
+    if (!s_stencil_texture_needs_update ||
+        glparamstate.draw_count == s_stencil_count_updated) {
+        return;
+    }
     s_stencil_texture_needs_update = false;
+    s_stencil_count_updated = glparamstate.draw_count;
 
     u16 top, bottom, left, right;
     top = s_dirty_area.top;
@@ -401,11 +406,6 @@ static bool draw_op(uint16_t op,
         drawColor = refColor;
     }
 
-    /* We set the dirty bit below, after loading the stencil buffer into the
-     * EFB, because otherwise the call to _ogx_apply_state() would reset it
-     * again. */
-    GX_SetColorUpdate(GX_TRUE);
-
     if (_ogx_efb_content_type == OGX_EFB_SCENE) {
         debug(OGX_LOG_STENCIL, "Saving scene EFB, clearing, loading stencil");
 
@@ -423,11 +423,14 @@ static bool draw_op(uint16_t op,
         GX_ClearBoundingBox();
         _ogx_setup_3D_projection();
 
-        /* TODO: restoring the EFB we alter the cull mode, Z mode, alpha
+        /* When restoring the EFB we alter the cull mode, Z mode, alpha
          * compare and more. All these settings need to be restored. */
         _ogx_apply_state();
     }
 
+    /* Unconditionally enable color updates when drawing on the stencil buffer.
+     */
+    GX_SetColorUpdate(GX_TRUE);
     glparamstate.dirty.bits.dirty_color_update = 1;
 
     u8 stage = GX_TEVSTAGE0;
