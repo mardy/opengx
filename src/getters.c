@@ -64,6 +64,45 @@ const GLubyte *glGetString(GLenum name)
     }
 }
 
+GLboolean glIsEnabled(GLenum cap)
+{
+    switch (cap) {
+    case GL_ALPHA_TEST:
+        return glparamstate.alphatest_enabled;
+    case GL_BLEND:
+        return glparamstate.blendenabled;
+    case GL_COLOR_MATERIAL:
+        return glparamstate.lighting.color_material_enabled;
+    case GL_CULL_FACE:
+        return glparamstate.cullenabled;
+    case GL_DEPTH_TEST:
+        return glparamstate.ztest;
+    case GL_FOG:
+        return glparamstate.fog.enabled;
+    case GL_LIGHT0:
+    case GL_LIGHT1:
+    case GL_LIGHT2:
+    case GL_LIGHT3:
+        return glparamstate.lighting.lights[cap - GL_LIGHT0].enabled;
+    case GL_LIGHTING:
+        return glparamstate.lighting.enabled;
+    case GL_STENCIL_TEST:
+        return glparamstate.stencil.enabled;
+    case GL_TEXTURE_2D:
+        return glparamstate.texture_enabled;
+    case GL_TEXTURE_GEN_S:
+        return glparamstate.texture_gen_enabled & OGX_TEXGEN_S;
+    case GL_TEXTURE_GEN_T:
+        return glparamstate.texture_gen_enabled & OGX_TEXGEN_T;
+    case GL_TEXTURE_GEN_R:
+        return glparamstate.texture_gen_enabled & OGX_TEXGEN_R;
+    case GL_TEXTURE_GEN_Q:
+        return glparamstate.texture_gen_enabled & OGX_TEXGEN_Q;
+    default:
+        return 0;
+    }
+}
+
 void glGetDoublev(GLenum pname, GLdouble *params)
 {
     float paramsf[16];
