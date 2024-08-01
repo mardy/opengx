@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "debug.h"
 #include "utils.h"
 #include "state.h"
+#include "stencil.h"
 
 #include <GL/gl.h>
 #include <string.h>
@@ -141,6 +142,36 @@ void glGetIntegerv(GLenum pname, GLint *params)
         break;
     case GL_PACK_ALIGNMENT:
         *params = glparamstate.pack_alignment;
+        break;
+    case GL_STENCIL_BITS:
+        *params = _ogx_stencil_flags & OGX_STENCIL_8BIT ? 8 : 4;
+        break;
+    case GL_STENCIL_CLEAR_VALUE:
+        *params = glparamstate.stencil.clear;
+        break;
+    case GL_STENCIL_FAIL:
+        *params = glparamstate.stencil.op_fail;
+        break;
+    case GL_STENCIL_FUNC:
+        *params = gl_compare_from_gx(glparamstate.stencil.func);
+        break;
+    case GL_STENCIL_PASS_DEPTH_FAIL:
+        *params = glparamstate.stencil.op_zfail;
+        break;
+    case GL_STENCIL_PASS_DEPTH_PASS:
+        *params = glparamstate.stencil.op_zpass;
+        break;
+    case GL_STENCIL_REF:
+        *params = glparamstate.stencil.ref;
+        break;
+    case GL_STENCIL_TEST:
+        *params = glparamstate.stencil.enabled;
+        break;
+    case GL_STENCIL_VALUE_MASK:
+        *params = glparamstate.stencil.mask;
+        break;
+    case GL_STENCIL_WRITEMASK:
+        *params = glparamstate.stencil.wmask;
         break;
     case GL_UNPACK_SWAP_BYTES:
         *params = glparamstate.unpack_swap_bytes;
