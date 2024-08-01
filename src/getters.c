@@ -31,6 +31,7 @@ POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 #include "debug.h"
+#include "utils.h"
 #include "state.h"
 
 #include <GL/gl.h>
@@ -47,7 +48,19 @@ GLenum glGetError(void)
 
 const GLubyte *glGetString(GLenum name)
 {
-    return gl_null_string;
+    switch (name) {
+    case GL_VENDOR:
+        return "opengx";
+    case GL_RENDERER:
+        return "libogc";
+    case GL_VERSION:
+        return "1.1";
+    case GL_EXTENSIONS:
+        return gl_null_string;
+    default:
+        set_error(GL_INVALID_ENUM);
+        return gl_null_string;
+    }
 }
 
 void glGetDoublev(GLenum pname, GLdouble *params)
