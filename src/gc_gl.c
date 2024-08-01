@@ -69,7 +69,6 @@ typedef struct
     uint8_t specular_mask;
 } LightMasks;
 
-static const GLubyte gl_null_string[1] = { 0 };
 char _ogx_log_level = 0;
 static GXTexObj s_zbuffer_texture;
 static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
@@ -1184,13 +1183,6 @@ GLint glRenderMode(GLenum mode)
     }
     glparamstate.render_mode = mode;
     return hit_count;
-}
-
-GLenum glGetError(void)
-{
-    GLenum error = glparamstate.error;
-    glparamstate.error = GL_NO_ERROR;
-    return error;
 }
 
 void glFlush() {} // All commands are sent immediately to draw, no queue, so pointless
@@ -2419,124 +2411,9 @@ void glBlendEquation(GLenum mode) {}
 void glShadeModel(GLenum mode) {}  // In theory we don't have GX equivalent?
 void glHint(GLenum target, GLenum mode) {}
 
-// XXX: Need to finish glGets, important!!!
-void glGetIntegerv(GLenum pname, GLint *params)
-{
-    switch (pname) {
-    case GL_MAX_TEXTURE_SIZE:
-        *params = 1024;
-        return;
-    case GL_MODELVIEW_STACK_DEPTH:
-        *params = MAX_MODV_STACK;
-        return;
-    case GL_PROJECTION_STACK_DEPTH:
-        *params = MAX_PROJ_STACK;
-        return;
-    case GL_MAX_NAME_STACK_DEPTH:
-        *params = MAX_NAME_STACK_DEPTH;
-        return;
-    case GL_NAME_STACK_DEPTH:
-        *params = glparamstate.name_stack_depth;
-        return;
-    case GL_PACK_SWAP_BYTES:
-        *params = glparamstate.pack_swap_bytes;
-        break;
-    case GL_PACK_LSB_FIRST:
-        *params = glparamstate.pack_lsb_first;
-        break;
-    case GL_PACK_ROW_LENGTH:
-        *params = glparamstate.pack_row_length;
-        break;
-    case GL_PACK_IMAGE_HEIGHT:
-        *params = glparamstate.pack_image_height;
-        break;
-    case GL_PACK_SKIP_ROWS:
-        *params = glparamstate.pack_skip_rows;
-        break;
-    case GL_PACK_SKIP_PIXELS:
-        *params = glparamstate.pack_skip_pixels;
-        break;
-    case GL_PACK_SKIP_IMAGES:
-        *params = glparamstate.pack_skip_images;
-        break;
-    case GL_PACK_ALIGNMENT:
-        *params = glparamstate.pack_alignment;
-        break;
-    case GL_UNPACK_SWAP_BYTES:
-        *params = glparamstate.unpack_swap_bytes;
-        break;
-    case GL_UNPACK_LSB_FIRST:
-        *params = glparamstate.unpack_lsb_first;
-        break;
-    case GL_UNPACK_ROW_LENGTH:
-        *params = glparamstate.unpack_row_length;
-        break;
-    case GL_UNPACK_IMAGE_HEIGHT:
-        *params = glparamstate.unpack_image_height;
-        break;
-    case GL_UNPACK_SKIP_ROWS:
-        *params = glparamstate.unpack_skip_rows;
-        break;
-    case GL_UNPACK_SKIP_PIXELS:
-        *params = glparamstate.unpack_skip_pixels;
-        break;
-    case GL_UNPACK_SKIP_IMAGES:
-        *params = glparamstate.unpack_skip_images;
-        break;
-    case GL_UNPACK_ALIGNMENT:
-        *params = glparamstate.unpack_alignment;
-        break;
-    case GL_VIEWPORT:
-        memcpy(params, glparamstate.viewport, 4 * sizeof(int));
-        return;
-    case GL_RENDER_MODE:
-        *params = glparamstate.render_mode;
-        return;
-    default:
-        return;
-    };
-}
-
-void glGetDoublev(GLenum pname, GLdouble *params)
-{
-    float paramsf[16];
-    int n = 1;
-
-    glGetFloatv(pname, paramsf);
-    switch (pname) {
-    case GL_MODELVIEW_MATRIX:
-    case GL_PROJECTION_MATRIX:
-        n = 16; break;
-    };
-    for (int i = 0; i < n; i++) {
-        params[i] = paramsf[i];
-    }
-}
-
-void glGetFloatv(GLenum pname, GLfloat *params)
-{
-    switch (pname) {
-    case GL_MODELVIEW_MATRIX:
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 4; j++)
-                params[j * 4 + i] = glparamstate.modelview_matrix[i][j];
-        params[3] = params[7] = params[11] = 0.0f;
-        params[15] = 1.0f;
-        return;
-    case GL_PROJECTION_MATRIX:
-        for (int i = 0; i < 4; i++)
-            for (int j = 0; j < 4; j++)
-                params[j * 4 + i] = glparamstate.modelview_matrix[i][j];
-        return;
-    default:
-        return;
-    };
-}
-
 // TODO STUB IMPLEMENTATION
 
 void glClipPlane(GLenum plane, const GLdouble *equation) {}
-const GLubyte *glGetString(GLenum name) { return gl_null_string; }
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params) {}
 void glLightModelf(GLenum pname, GLfloat param) {}
 void glLightModeli(GLenum pname, GLint param) {}

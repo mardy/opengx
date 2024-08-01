@@ -29,6 +29,7 @@ add_library(${TARGET} STATIC
     src/efb.h
     src/functions.c
     src/gc_gl.c
+    src/getters.c
     src/image_DXT.c
     src/image_DXT.h
     src/opengx.h
