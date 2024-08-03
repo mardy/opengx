@@ -2426,6 +2426,8 @@ void glHint(GLenum target, GLenum mode) {}
 
 // TODO STUB IMPLEMENTATION
 
+void glLineStipple(GLint factor, GLushort pattern) {}
+void glPolygonStipple(const GLubyte *mask) {}
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params) {}
 void glLightModelf(GLenum pname, GLfloat param) {}
 void glLightModeli(GLenum pname, GLint param) {}
