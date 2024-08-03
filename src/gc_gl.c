@@ -1937,7 +1937,7 @@ static void setup_fog()
     GX_SetFog(mode, start, end, near, far, color);
 }
 
-static void setup_texture_gen()
+static void setup_texture_gen(int *tex_mtxs)
 {
     Mtx m;
 
@@ -1954,21 +1954,23 @@ static void setup_texture_gen()
     switch (glparamstate.texture_gen_mode) {
     case GL_OBJECT_LINEAR:
         input_type = GX_TG_POS;
-        matrix_src = GX_TEXMTX0;
+        matrix_src = GX_TEXMTX0 + *tex_mtxs * 3;
         set_gx_mtx_rowv(0, m, glparamstate.texture_object_plane_s);
         set_gx_mtx_rowv(1, m, glparamstate.texture_object_plane_t);
         set_gx_mtx_row(2, m, 0.0f, 0.0f, 1.0f, 0.0f);
-        GX_LoadTexMtxImm(m, GX_TEXMTX0, GX_MTX2x4);
+        GX_LoadTexMtxImm(m, matrix_src, GX_MTX2x4);
+        ++(*tex_mtxs);
         break;
     case GL_EYE_LINEAR:
         input_type = GX_TG_POS;
-        matrix_src = GX_TEXMTX0;
+        matrix_src = GX_TEXMTX0 + *tex_mtxs * 3;
         Mtx eye_plane;
         set_gx_mtx_rowv(0, eye_plane, glparamstate.texture_eye_plane_s);
         set_gx_mtx_rowv(1, eye_plane, glparamstate.texture_eye_plane_t);
         set_gx_mtx_row(2, eye_plane, 0.0f, 0.0f, 1.0f, 0.0f);
         guMtxConcat(eye_plane, glparamstate.modelview_matrix, m);
-        GX_LoadTexMtxImm(m, GX_TEXMTX0, GX_MTX2x4);
+        GX_LoadTexMtxImm(m, matrix_src, GX_MTX2x4);
+        ++(*tex_mtxs);
         break;
     default:
         warning("Unsupported texture coordinate generation mode %x",
@@ -1979,7 +1981,7 @@ static void setup_texture_gen()
 }
 
 static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
-                                u8 channel)
+                                u8 channel, int *tex_mtxs)
 {
     switch (glparamstate.texture_env_mode) {
     case GL_REPLACE:
@@ -2012,14 +2014,14 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
     GX_SetTevOrder(stage, GX_TEXCOORD0, GX_TEXMAP0, channel);
     GX_LoadTexObj(&texture_list[glparamstate.glcurtex].texobj, GX_TEXMAP0);
     if (glparamstate.dirty.bits.dirty_texture_gen) {
-        setup_texture_gen();
+        setup_texture_gen(tex_mtxs);
         glparamstate.dirty.bits.dirty_texture_gen = 0;
     }
 }
 
 bool _ogx_setup_render_stages()
 {
-    int stages = 0, tex_coords = 0, tex_maps = 0;
+    int stages = 0, tex_coords = 0, tex_maps = 0, tex_mtxs = 0;
 
     if (glparamstate.lighting.enabled) {
         LightMasks light_mask = prepare_lighting();
@@ -2119,7 +2121,8 @@ bool _ogx_setup_render_stages()
 
         if (glparamstate.texture_enabled) {
             // Do not select any raster value, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
-            setup_texture_stage(GX_TEVSTAGE2, GX_CC_CPREV, GX_CA_APREV, GX_COLORNULL);
+            setup_texture_stage(GX_TEVSTAGE2, GX_CC_CPREV, GX_CA_APREV, GX_COLORNULL,
+                                &tex_mtxs);
             stages++;
             tex_coords++;
             tex_maps++;
@@ -2156,7 +2159,7 @@ bool _ogx_setup_render_stages()
             // Select COLOR0A0 for the rasterizer, Texture 0 for texture rasterizer and TEXCOORD0 slot for tex coordinates
             setup_texture_stage(GX_TEVSTAGE0,
                                 vertex_color_register, vertex_alpha_register,
-                                rasterized_color);
+                                rasterized_color, &tex_mtxs);
             tex_coords++;
             tex_maps++;
         } else {
@@ -2173,7 +2176,7 @@ bool _ogx_setup_render_stages()
 
     if (glparamstate.stencil.enabled) {
         bool should_draw =
-            _ogx_stencil_setup_tev(&stages, &tex_coords, tex_maps);
+            _ogx_stencil_setup_tev(&stages, &tex_coords, &tex_maps, &tex_mtxs);
         if (!should_draw) return false;
     }
     GX_SetNumTevStages(stages);
