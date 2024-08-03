@@ -437,3 +437,48 @@ void glTexCoord4dv(const GLdouble *v) { set_current_tex_coords(v[0], v[1], v[2],
 void glTexCoord4fv(const GLfloat *v) { set_current_tex_coords(v[0], v[1], v[2], v[3]); }
 void glTexCoord4iv(const GLint *v) { set_current_tex_coords(v[0], v[1], v[2], v[3]); }
 void glTexCoord4sv(const GLshort *v) { set_current_tex_coords(v[0], v[1], v[2], v[3]); }
+
+void glRectd(GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2)
+{
+    glBegin(GL_POLYGON);
+    glVertex2d(x1, y1);
+    glVertex2d(x2, y1);
+    glVertex2d(x2, y2);
+    glVertex2d(x1, y2);
+    glEnd();
+}
+
+void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2)
+{
+    glBegin(GL_POLYGON);
+    glVertex2f(x1, y1);
+    glVertex2f(x2, y1);
+    glVertex2f(x2, y2);
+    glVertex2f(x1, y2);
+    glEnd();
+}
+
+void glRecti(GLint x1, GLint y1, GLint x2, GLint y2)
+{
+    glBegin(GL_POLYGON);
+    glVertex2i(x1, y1);
+    glVertex2i(x2, y1);
+    glVertex2i(x2, y2);
+    glVertex2i(x1, y2);
+    glEnd();
+}
+
+void glRects(GLshort x1, GLshort y1, GLshort x2, GLshort y2)
+{
+    glBegin(GL_POLYGON);
+    glVertex2s(x1, y1);
+    glVertex2s(x2, y1);
+    glVertex2s(x2, y2);
+    glVertex2s(x1, y2);
+    glEnd();
+}
+
+void glRectdv(const GLdouble *v1, const GLdouble *v2) { glRectd(v1[0], v1[1], v2[0], v2[1]); }
+void glRectfv(const GLfloat *v1, const GLfloat *v2) { glRectf(v1[0], v1[1], v2[0], v2[1]); }
+void glRectiv(const GLint *v1, const GLint *v2) { glRecti(v1[0], v1[1], v2[0], v2[1]); }
+void glRectsv(const GLshort *v1, const GLshort *v2) { glRects(v1[0], v1[1], v2[0], v2[1]); }
