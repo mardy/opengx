@@ -2221,6 +2221,31 @@ static void flat_draw_elements(void *cb_data)
     GX_End();
 }
 
+void glArrayElement(GLint i)
+{
+    float value[3];
+    if (glparamstate.imm_mode.in_gl_begin && glparamstate.cs.vertex_enabled) {
+        _ogx_array_reader_read_pos3f(&glparamstate.vertex_array, i, value);
+        glVertex3fv(value);
+    }
+
+    if (glparamstate.cs.normal_enabled) {
+        _ogx_array_reader_read_norm3f(&glparamstate.normal_array, i, value);
+        glNormal3fv(value);
+    }
+
+    if (glparamstate.cs.texcoord_enabled) {
+        _ogx_array_reader_read_tex2f(&glparamstate.texcoord_array, i, value);
+        glTexCoord2fv(value);
+    }
+
+    if (glparamstate.cs.color_enabled) {
+        GXColor color;
+        _ogx_array_reader_read_color(&glparamstate.color_array, i, &color);
+        glColor4ub(color.r, color.g, color.b, color.a);
+    }
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     DrawMode gxmode = draw_mode(mode);
