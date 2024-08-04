@@ -46,6 +46,7 @@ POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 #include "call_lists.h"
+#include "clip.h"
 #include "debug.h"
 #include "opengx.h"
 #include "selection.h"
@@ -438,6 +439,14 @@ void glEnable(GLenum cap)
         glparamstate.blendenabled = 1;
         glparamstate.dirty.bits.dirty_blend = 1;
         break;
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+        _ogx_clip_enabled(cap - GL_CLIP_PLANE0);
+        break;
     case GL_DEPTH_TEST:
         glparamstate.ztest = GX_TRUE;
         glparamstate.dirty.bits.dirty_z = 1;
@@ -502,6 +511,14 @@ void glDisable(GLenum cap)
     case GL_BLEND:
         glparamstate.blendenabled = 0;
         glparamstate.dirty.bits.dirty_blend = 1;
+        break;
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+        _ogx_clip_disabled(cap - GL_CLIP_PLANE0);
         break;
     case GL_DEPTH_TEST:
         glparamstate.ztest = GX_FALSE;
@@ -2179,6 +2196,11 @@ bool _ogx_setup_render_stages()
             _ogx_stencil_setup_tev(&stages, &tex_coords, &tex_maps, &tex_mtxs);
         if (!should_draw) return false;
     }
+
+    if (glparamstate.clip_plane_mask != 0) {
+        _ogx_clip_setup_tev(&stages, &tex_coords, &tex_maps, &tex_mtxs);
+    }
+
     GX_SetNumTevStages(stages);
     GX_SetNumTexGens(tex_coords);
 
@@ -2204,7 +2226,8 @@ void _ogx_apply_state()
     }
 
     if (glparamstate.dirty.bits.dirty_alphatest ||
-        glparamstate.dirty.bits.dirty_stencil) {
+        glparamstate.dirty.bits.dirty_stencil ||
+        glparamstate.dirty.bits.dirty_clip_planes) {
         u8 params[4] = { GX_ALWAYS, 0, GX_ALWAYS, 0 };
         int comparisons = 0;
         if (glparamstate.alphatest_enabled) {
@@ -2212,7 +2235,7 @@ void _ogx_apply_state()
             params[1] = glparamstate.alpha_ref;
             comparisons++;
         }
-        if (glparamstate.stencil.enabled) {
+        if (glparamstate.stencil.enabled || glparamstate.clip_plane_mask) {
             params[comparisons * 2] = GX_GREATER;
             /* The reference value is initialized to 0, which is the value we
              * want */
@@ -2244,6 +2267,7 @@ void _ogx_apply_state()
     glparamstate.dirty.bits.dirty_stencil = 0;
     glparamstate.dirty.bits.dirty_alphatest = 0;
     glparamstate.dirty.bits.dirty_blend = 0;
+    glparamstate.dirty.bits.dirty_clip_planes = 0;
     glparamstate.dirty.bits.dirty_color_update = 0;
     glparamstate.dirty.bits.dirty_z = 0;
 }
@@ -2550,7 +2574,6 @@ void glHint(GLenum target, GLenum mode) {}
 
 // TODO STUB IMPLEMENTATION
 
-void glClipPlane(GLenum plane, const GLdouble *equation) {}
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params) {}
 void glLightModelf(GLenum pname, GLfloat param) {}
 void glLightModeli(GLenum pname, GLint param) {}
