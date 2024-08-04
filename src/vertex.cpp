@@ -39,7 +39,17 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <type_traits>
 
 template <typename T>
-void set_current_color(T red, T green, T blue, T alpha = 0)
+T full_color()
+{
+    if constexpr (std::is_floating_point<T>::value) {
+        return 1.0f;
+    } else {
+        return std::numeric_limits<T>::max();
+    }
+}
+
+template <typename T>
+void set_current_color(T red, T green, T blue, T alpha = full_color<T>())
 {
     if (glparamstate.imm_mode.in_gl_begin)
         glparamstate.imm_mode.has_color = 1;
