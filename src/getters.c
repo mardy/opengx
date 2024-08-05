@@ -132,7 +132,7 @@ void glGetFloatv(GLenum pname, GLfloat *params)
     case GL_PROJECTION_MATRIX:
         for (int i = 0; i < 4; i++)
             for (int j = 0; j < 4; j++)
-                params[j * 4 + i] = glparamstate.modelview_matrix[i][j];
+                params[j * 4 + i] = glparamstate.projection_matrix[i][j];
         return;
     default:
         return;
