@@ -41,10 +41,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 static GXTexObj s_clip_texture;
 static uint8_t s_clip_texels[32] ATTRIBUTE_ALIGN(32) = {
-    0x0f, 0x00, 0x00, 0x00,
+    /* We only are about the top-left 2x2 corner, that is (given that pixels
+     * are 4 bits wide) the first and the fourth byte only.
+     * Note how the positive pixel value is set on the bottom right corner,
+     * since in OpenGL the y coordinate grows upwards, but the t texture
+     * coordinate grows downwards. */
     0x00, 0x00, 0x00, 0x00,
-    /* There are six more rows, but we don't care about their contents: we only
-     * care about the top-left 2x2 corner */
+    0x0f, 0x00, 0x00, 0x00,
 };
 
 static void load_clip_texture(u8 tex_map)
@@ -103,12 +106,7 @@ static bool setup_tev(int *stages, int *tex_coords, int tex_maps, int *tex_mtxs,
      * centre of our texture is (0.5, 0.5), therefore we need to map the zero
      * point to that. We do that by translating the texture coordinates by 0.5.
      */
-    const static Mtx trans = {
-        { 1, 0,  0, 0.5},
-        { 0, -1, 0, 0.5},
-        { 0, 0,  0, 1}, /* row is unused */
-    };
-    guMtxConcat(trans, m, m);
+    guMtxTransApply(m, m, 0.5, 0.5, 0);
     GX_LoadTexMtxImm(m, tex_mtx, GX_MTX2x4);
 
     GX_SetTexCoordGen(tex_coord, GX_TG_MTX2x4, GX_TG_POS, tex_mtx);
