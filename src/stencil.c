@@ -344,23 +344,51 @@ static bool setup_tev_full(int *stages, int *tex_coords,
 
     /* Add a set of texture coordinates that exactly match the viewport
      * coordinates of each vertex. This is done by multiplying the vertex
-     * positions by the model view matrix and by the projection matrix. */
+     * positions by the model view matrix and by the projection matrix.
+     * Note that since the texture coordinate generator only works with
+     * matrices up to 3x4, it's unable to multiply the full 4x4 matrix needed
+     * for the projection, so we have to resort to some hacks (described
+     * below).
+     * Here we just take the movel view matrix and apply the scale on the X and
+     * Y coordinates from the projection matrix. */
     Mtx m;
     guMtxScaleApply(glparamstate.modelview_matrix, m,
                     glparamstate.projection_matrix[0][0],
                     glparamstate.projection_matrix[1][1],
                     1.0);
-    /* This matrix scales the [-1,1]x[-1,1] viewport to [0,1]x[0,1]. I have no
-     * idea how and why it works, but it does! */
-    const static Mtx trans = {
-        {-0.5,   0, 0.5, 0},
-        {0,    0.5, 0.5, 0},
-        {0,      0,   1, 0},
-    };
-    guMtxConcat(trans, m, m);
-    GX_LoadTexMtxImm(m, tex_mtx, GX_MTX3x4);
+    u8 matrix_type;
+    if (glparamstate.projection_matrix[3][3] != 0) {
+        /* Othographic projection: this can be handled by a 2x4 matrix. We
+         * apply a scale & translation matrix to transform the [-1,1]x[-1,1]
+         * clip space coordinates to the [0,1]x[0,1] range which we need for
+         * the s and t texture coordinates. This is can be done by scaling by
+         * 0.5 and translating along the positive X and Y axes by 0.5. */
+        matrix_type = GX_TG_MTX2x4;
+        const static Mtx trans = {
+            {0.5,    0, 0, 0.5},
+            {0,   -0.5, 0, 0.5},
+            {0,      0,  0, 1}, /* this row is ignored */
+        };
+        guMtxConcat(trans, m, m);
+        GX_LoadTexMtxImm(m, tex_mtx, GX_MTX2x4);
+    } else {
+        /* Perspective projection: this is conceptually harder, because the
+         * operation that we need to perform (and that we do usually perform
+         * when drawing to the screen) involves dividing the x, y, z
+         * coordinates by the w coordinate, whose value in turn depends on the
+         * z coordinate. See the PDF document for an explanation of why this
+         * works. */
+        matrix_type = GX_TG_MTX3x4;
+        const static Mtx trans = {
+            {-0.5,   0, 0.5, 0},
+            {0,    0.5, 0.5, 0},
+            {0,      0,   1, 0},
+        };
+        guMtxConcat(trans, m, m);
+        GX_LoadTexMtxImm(m, tex_mtx, GX_MTX3x4);
+    }
 
-    GX_SetTexCoordGen(tex_coord, GX_TG_MTX3x4, GX_TG_POS, tex_mtx);
+    GX_SetTexCoordGen(tex_coord, matrix_type, GX_TG_POS, tex_mtx);
     glparamstate.dirty.bits.dirty_texture_gen = 1;
 
     GX_LoadTexObj(&s_stencil_texture, tex_map);
