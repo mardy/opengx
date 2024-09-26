@@ -38,6 +38,8 @@ typedef struct {
     void *address;
 } ProcMap;
 
+int _ogx_functions_c = 0; /* referenced by gc_gl.c, see the comment in there */
+
 #define PROC(name) { #name, name }
 static const ProcMap s_proc_map[] = {
     //PROC(glAccum),

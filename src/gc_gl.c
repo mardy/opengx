@@ -79,6 +79,13 @@ typedef struct
 char _ogx_log_level = 0;
 static GXTexObj s_zbuffer_texture;
 static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
+/* Force the inclusion of functions.c's TU in the build when GL functions are
+ * used. In this way, if a client library (such as SDL) defines weak symbols
+ * for the opengx functions it uses, a client application which actually uses
+ * opengx will link and use its real implementation; at the same time, a client
+ * which does not use OpenGL is not forced to link with opengx. */
+extern int _ogx_functions_c;
+void *_ogx_force_proctable = &_ogx_functions_c;
 
 static void draw_arrays_general(DrawMode gxmode, int first, int count, int ne,
                                 int color_provide, int texen);
