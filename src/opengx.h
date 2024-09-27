@@ -42,6 +42,14 @@ extern "C" {
 void ogx_initialize(void);
 void *ogx_get_proc_address(const char *proc);
 
+/* Enable or disable double buffering. This is actually a choice entirely made
+ * by the integration library, but opengx must be informed about it in order to
+ * select the right value for the glReadBuffer() and glDrawBuffer() functions.
+ *
+ * If this is not called, opengx assumes double buffering is on.
+ */
+int ogx_enable_double_buffering(int double_buffering);
+
 /* The display integration library (SDL, GLUT, etc.) should call this function
  * before copying the EFB to the XFB (and optionally, drawing a cursor). The
  * opengx library might need to restore the EFB (in case it was configured into

@@ -143,6 +143,9 @@ void glGetFloatv(GLenum pname, GLfloat *params)
 void glGetIntegerv(GLenum pname, GLint *params)
 {
     switch (pname) {
+    case GL_AUX_BUFFERS:
+        *params = 0;
+        break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:
     case GL_CLIP_PLANE2:
@@ -152,6 +155,10 @@ void glGetIntegerv(GLenum pname, GLint *params)
         *params =
             glparamstate.clip_plane_mask & (1 << (pname - GL_CLIP_PLANE0));
         return;
+    case GL_DRAW_BUFFER:
+    case GL_READ_BUFFER:
+        *params = glparamstate.active_buffer;
+        break;
     case GL_MAX_CLIP_PLANES:
         *params = MAX_CLIP_PLANES;
         return;

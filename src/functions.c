@@ -109,7 +109,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glDisable),
     PROC(glDisableClientState),
     PROC(glDrawArrays),
-    //PROC(glDrawBuffer),
+    PROC(glDrawBuffer),
     PROC(glDrawElements),
     //PROC(glDrawPixels),
     //PROC(glEdgeFlag),

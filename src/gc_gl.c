@@ -184,6 +184,13 @@ static void setup_cull_mode()
     }
 }
 
+int ogx_enable_double_buffering(int double_buffering)
+{
+    int had_double_buffering = glparamstate.active_buffer == GL_BACK;
+    glparamstate.active_buffer = double_buffering ? GL_BACK : GL_FRONT;
+    return had_double_buffering;
+}
+
 int ogx_prepare_swap_buffers()
 {
     return glparamstate.render_mode == GL_RENDER ? 0 : -1;
@@ -368,6 +375,8 @@ void ogx_initialize()
     glparamstate.stencil.op_zfail = GL_KEEP;
     glparamstate.stencil.op_zpass = GL_KEEP;
 
+    glparamstate.active_buffer = GL_BACK;
+
     glparamstate.error = GL_NO_ERROR;
     glparamstate.draw_count = 0;
 
@@ -460,6 +469,21 @@ void _ogx_efb_set_content_type_real(OgxEfbContentType content_type)
         break;
     }
     _ogx_efb_content_type = content_type;
+}
+
+void glDrawBuffer(GLenum mode)
+{
+    if (mode != glparamstate.active_buffer) {
+        warning("Change the read or write buffer is not implemented");
+        set_error(GL_INVALID_OPERATION);
+    }
+}
+
+void glReadBuffer(GLenum mode)
+{
+    /* We currently don't support changing read/write buffers, so the
+     * implementation can be the same. */
+    glDrawBuffer(mode);
 }
 
 void glEnable(GLenum cap)
@@ -2533,7 +2557,6 @@ void glPopAttrib(void) {}
 void glPushClientAttrib(GLbitfield mask) {}
 void glPopClientAttrib(void) {}
 void glPolygonMode(GLenum face, GLenum mode) {}
-void glReadBuffer(GLenum mode) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
 
 /*

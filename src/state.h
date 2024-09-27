@@ -104,6 +104,7 @@ typedef struct glparams_
     OgxTexgenMask texture_gen_enabled;
     GLenum glcullmode;
     GLenum render_mode;
+    GLenum active_buffer; /* no separate buffers for reading and writing */
     int glcurtex;
     int draw_count;
     GXColor clear_color;
