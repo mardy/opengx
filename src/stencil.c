@@ -447,8 +447,6 @@ static bool draw_op(uint16_t op,
     if (_ogx_efb_content_type == OGX_EFB_SCENE) {
         debug(OGX_LOG_STENCIL, "Saving scene EFB, clearing, loading stencil");
 
-        GXColor black = { 0, 0, 0, 255 };
-        GX_SetCopyClear(black, GX_MAX_Z24);
         GX_DrawDone();
         _ogx_efb_save(OGX_EFB_COLOR);
 
