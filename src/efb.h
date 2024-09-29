@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <GL/gl.h>
 #include <malloc.h>
 #include <ogc/gx.h>
+#include <ogc/system.h>
 
 typedef enum {
     OGX_EFB_NONE = 0,
@@ -68,6 +69,10 @@ typedef struct {
 void _ogx_efb_buffer_prepare(OgxEfbBuffer **buffer, uint8_t format);
 void _ogx_efb_buffer_handle_resize(OgxEfbBuffer **buffer);
 void _ogx_efb_buffer_save(OgxEfbBuffer *buffer, OgxEfbFlags flags);
+static inline void *_ogx_efb_buffer_get_texels(OgxEfbBuffer *buffer) {
+    void *texels = GX_GetTexObjData(&buffer->texobj);
+    return texels ? MEM_PHYSICAL_TO_K0(texels) : NULL;
+}
 
 void _ogx_efb_set_content_type_real(OgxEfbContentType content_type);
 

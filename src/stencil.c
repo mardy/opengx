@@ -46,7 +46,7 @@ static uint8_t s_stencil_format = GX_CTF_R4;
 OgxStencilFlags _ogx_stencil_flags = OGX_STENCIL_NONE;
 /* This is the authoritative stencil buffer contents: note that the order of
  * the pixel data follows the GX texture scrambling logic. */
-static uint8_t *s_stencil_buffer = NULL;
+static OgxEfbBuffer *s_stencil_buffer = NULL;
 /* This is a simplified version of the stencil buffer only used for drawing:
  * its pixels are set to 0 for blocked areas and > 0 for paintable areas. */
 static GXTexObj s_stencil_texture;
@@ -183,7 +183,7 @@ static void update_stencil_texture()
     int block_end_x = (right + block_width - 1) / block_width;
     int width_blocks = block_end_x - block_start_x;
 
-    void *stencil_data = s_stencil_buffer;
+    void *stencil_data = _ogx_efb_buffer_get_texels(s_stencil_buffer);
     void *stencil_texels =
         MEM_PHYSICAL_TO_K0(GX_GetTexObjData(&s_stencil_texture));
     uint8_t masked_ref = glparamstate.stencil.ref & glparamstate.stencil.mask;
@@ -246,19 +246,9 @@ static void update_stencil_texture()
 
 void _ogx_stencil_load_into_efb()
 {
-    GXTexObj texture;
 
-    /* The stencil texture object has been created on initialization, get the
-     * size from it. */
-    u16 width = GX_GetTexObjWidth(&s_stencil_texture);
-    u16 height = GX_GetTexObjHeight(&s_stencil_texture);
-
-    GX_InitTexObj(&texture, s_stencil_buffer, width, height,
-                  s_stencil_format, GX_CLAMP, GX_CLAMP, GX_FALSE);
-    GX_InitTexObjLOD(&texture, GX_NEAR, GX_NEAR,
-                     0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
     GX_InvalidateTexAll();
-    _ogx_efb_restore_texobj(&texture);
+    _ogx_efb_restore_texobj(&s_stencil_buffer->texobj);
 
     /* We clear the bounding box because at the end of the drawing
      * operations on the stencil buffer we will need to update the stencil
@@ -275,13 +265,10 @@ void _ogx_stencil_load_into_efb()
 
 void _ogx_stencil_save_to_efb()
 {
-    u16 width = GX_GetTexObjWidth(&s_stencil_texture);
-    u16 height = GX_GetTexObjHeight(&s_stencil_texture);
     GX_DrawDone();
     check_bounding_box();
     debug(OGX_LOG_STENCIL, "Saving EFB to stencil buffer, restoring color");
-    _ogx_efb_save_to_buffer(s_stencil_format, width, height,
-                            s_stencil_buffer, OGX_EFB_COLOR);
+    _ogx_efb_buffer_save(s_stencil_buffer, OGX_EFB_COLOR);
 }
 
 static bool setup_tev_full(int *stages, int *tex_coords,
@@ -600,10 +587,9 @@ void _ogx_stencil_update()
     if (!s_wants_stencil) return;
 
     u8 format = s_stencil_format;
+    _ogx_efb_buffer_prepare(&s_stencil_buffer, format);
     u32 size = GX_GetTexBufferSize(width, height, format, 0, GX_FALSE);
-    s_stencil_buffer = memalign(32, size);
-    memset(s_stencil_buffer, 0, size);
-    DCStoreRangeNoSync(s_stencil_buffer, size);
+    memset(_ogx_efb_buffer_get_texels(s_stencil_buffer), 0, size);
     void *stencil_texels = memalign(32, size);
     memset(stencil_texels, 0, size);
     DCStoreRange(stencil_texels, size);
@@ -628,8 +614,9 @@ void _ogx_stencil_clear()
         value |= value << 4;
     }
     if (s_stencil_buffer) {
-        memset(s_stencil_buffer, value, size);
-        DCStoreRangeNoSync(s_stencil_buffer, size);
+        void *texels = _ogx_efb_buffer_get_texels(s_stencil_buffer);
+        memset(texels, value, size);
+        DCStoreRangeNoSync(texels, size);
     }
     uint8_t *texels = GX_GetTexObjData(&s_stencil_texture);
     if (texels) {
