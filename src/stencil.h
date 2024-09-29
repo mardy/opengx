@@ -53,4 +53,7 @@ bool _ogx_stencil_setup_tev(int *stages, int *tex_coords,
 typedef void (*OgxStencilDrawCallback)(void *data);
 void _ogx_stencil_draw(OgxStencilDrawCallback callback, void *cb_data);
 
+void _ogx_stencil_load_into_efb();
+void _ogx_stencil_save_to_efb();
+
 #endif /* OPENGX_STENCIL_H */

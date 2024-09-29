@@ -41,55 +41,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 OgxEfbContentType _ogx_efb_content_type = OGX_EFB_SCENE;
 
-static GXTexObj s_efb_texture;
-/* This is the ID of the drawing operation that was copied last (0 = none) */
-static int s_draw_count_copied = 0;
-
-void _ogx_efb_save(OgxEfbFlags flags)
-{
-    /* TODO: support saving Z-buffer (code in selection.c) */
-
-    if (s_draw_count_copied == glparamstate.draw_count) {
-        printf("Not copying EFB\n");
-        /* We already copied this frame, nothing to do here */
-        return;
-    }
-
-    s_draw_count_copied = glparamstate.draw_count;
-
-    u16 width = glparamstate.viewport[2];
-    u16 height = glparamstate.viewport[3];
-    u16 oldwidth = GX_GetTexObjWidth(&s_efb_texture);
-    u16 oldheight = GX_GetTexObjHeight(&s_efb_texture);
-    uint8_t *texels = GX_GetTexObjData(&s_efb_texture);
-    if (texels) {
-        texels = MEM_PHYSICAL_TO_K0(texels);
-    }
-
-    if (width != oldwidth || height != oldheight) {
-        if (texels) {
-            free(texels);
-        }
-        u32 size = GX_GetTexBufferSize(width, height, GX_TF_RGBA8, 0, GX_FALSE);
-        texels = memalign(32, size);
-        DCInvalidateRange(texels, size);
-
-        GX_InitTexObj(&s_efb_texture, texels, width, height,
-                      GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
-        GX_InitTexObjLOD(&s_efb_texture, GX_NEAR, GX_NEAR,
-                         0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
-    }
-
-    _ogx_efb_save_to_buffer(GX_TF_RGBA8, width, height, texels, flags);
-}
-
-void _ogx_efb_restore(OgxEfbFlags flags)
-{
-    /* TODO: support restoring Z-buffer (code in selection.c) */
-
-    _ogx_efb_restore_texobj(&s_efb_texture);
-}
-
 void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
                              void *texels, OgxEfbFlags flags)
 {
@@ -152,4 +103,53 @@ void _ogx_efb_restore_texobj(GXTexObj *texobj)
     GX_Position2u16(width, 0);
     GX_TexCoord2u8(1, 0);
     GX_End();
+}
+
+void _ogx_efb_buffer_prepare(OgxEfbBuffer **buffer, uint8_t format)
+{
+    if (*buffer) return;
+
+    u16 width = glparamstate.viewport[2];
+    u16 height = glparamstate.viewport[3];
+    u32 size = GX_GetTexBufferSize(width, height, GX_TF_RGBA8, 0, GX_FALSE);
+    OgxEfbBuffer *b = memalign(32, size + sizeof(OgxEfbBuffer));
+    void *texels = &(b->texels[0]);
+    DCInvalidateRange(texels, size);
+
+    GX_InitTexObj(&b->texobj, texels, width, height, format,
+                  GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjLOD(&b->texobj, GX_NEAR, GX_NEAR,
+                     0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
+    b->draw_count = 0;
+    *buffer = b;
+}
+
+void _ogx_efb_buffer_handle_resize(OgxEfbBuffer **buffer)
+{
+    /* If no buffer was allocated, nothing to do */
+    if (!*buffer) return;
+
+    void *texels;
+    u8 format, unused;
+    u16 oldwidth, oldheight;
+    GX_GetTexObjAll(&(*buffer)->texobj, &texels, &oldwidth, &oldheight, &format,
+                    &unused, &unused, &unused);
+
+    u16 width = glparamstate.viewport[2];
+    u16 height = glparamstate.viewport[3];
+    if (width != oldwidth || height != oldheight) {
+        free(*buffer);
+        *buffer = NULL;
+        _ogx_efb_buffer_prepare(buffer, format);
+    }
+}
+
+void _ogx_efb_buffer_save(OgxEfbBuffer *buffer, OgxEfbFlags flags)
+{
+    void *texels;
+    u8 format, unused;
+    u16 width, height;
+    GX_GetTexObjAll(&buffer->texobj, &texels, &width, &height, &format,
+                    &unused, &unused, &unused);
+    _ogx_efb_save_to_buffer(format, width, height, texels, flags);
 }

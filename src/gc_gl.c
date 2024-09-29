@@ -48,6 +48,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "call_lists.h"
 #include "clip.h"
 #include "debug.h"
+#include "efb.h"
 #include "opengx.h"
 #include "selection.h"
 #include "state.h"
@@ -77,6 +78,7 @@ typedef struct
 } DrawMode;
 
 char _ogx_log_level = 0;
+static OgxEfbBuffer *s_efb_scene_buffer = NULL;
 static GXTexObj s_zbuffer_texture;
 static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
 /* Force the inclusion of functions.c's TU in the build when GL functions are
@@ -415,6 +417,49 @@ void _ogx_setup_3D_projection()
      */
     GX_SetCurrentMtx(GX_PNMTX3);
     update_projection_matrix();
+}
+
+static void scene_save_to_efb()
+{
+    _ogx_efb_buffer_prepare(&s_efb_scene_buffer, GX_TF_RGBA8);
+    if (s_efb_scene_buffer->draw_count == glparamstate.draw_count) return;
+
+    GX_DrawDone();
+    _ogx_efb_buffer_save(s_efb_scene_buffer, OGX_EFB_COLOR);
+    s_efb_scene_buffer->draw_count = glparamstate.draw_count;
+}
+
+static void scene_load_from_efb()
+{
+    if (!s_efb_scene_buffer) return;
+    _ogx_efb_restore_texobj(&s_efb_scene_buffer->texobj);
+}
+
+/* This function might fit best in efb.c, but since it uses symbols from other
+ * files, it's better to define it here to avoid cross-dependencies (which are
+ * mostly harmless, but not clean). */
+void _ogx_efb_set_content_type_real(OgxEfbContentType content_type)
+{
+    /* Save existing EFB contents, if needed */
+    switch (_ogx_efb_content_type) {
+    case OGX_EFB_SCENE:
+        scene_save_to_efb();
+        break;
+    case OGX_EFB_STENCIL:
+        _ogx_stencil_save_to_efb();
+        break;
+    }
+
+    /* Restore data from previously stored EFB for this content type */
+    switch (content_type) {
+    case OGX_EFB_SCENE:
+        scene_load_from_efb();
+        break;
+    case OGX_EFB_STENCIL:
+        _ogx_stencil_load_into_efb();
+        break;
+    }
+    _ogx_efb_content_type = content_type;
 }
 
 void glEnable(GLenum cap)
@@ -862,6 +907,7 @@ void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
     GX_SetViewport(x, y, width, height, 0.0f, 1.0f);
     GX_SetScissor(x, y, width, height);
     _ogx_stencil_update();
+    _ogx_efb_buffer_handle_resize(&s_efb_scene_buffer);
 }
 
 void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)

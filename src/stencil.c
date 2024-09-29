@@ -244,7 +244,7 @@ static void update_stencil_texture()
     memset(&s_dirty_area, 0, sizeof(s_dirty_area));
 }
 
-static void load_stencil_into_efb()
+void _ogx_stencil_load_into_efb()
 {
     GXTexObj texture;
 
@@ -260,7 +260,28 @@ static void load_stencil_into_efb()
     GX_InvalidateTexAll();
     _ogx_efb_restore_texobj(&texture);
 
-    _ogx_efb_content_type = OGX_EFB_STENCIL;
+    /* We clear the bounding box because at the end of the drawing
+     * operations on the stencil buffer we will need to update the stencil
+     * texture which we use for the actual drawing, and the bounding box
+     * allows us to do it more efficiently. */
+    GX_DrawDone();
+    GX_ClearBoundingBox();
+    _ogx_setup_3D_projection();
+
+    /* When restoring the EFB we alter the cull mode, Z mode, alpha
+     * compare and more. All these settings need to be restored. */
+    _ogx_apply_state();
+}
+
+void _ogx_stencil_save_to_efb()
+{
+    u16 width = GX_GetTexObjWidth(&s_stencil_texture);
+    u16 height = GX_GetTexObjHeight(&s_stencil_texture);
+    GX_DrawDone();
+    check_bounding_box();
+    debug(OGX_LOG_STENCIL, "Saving EFB to stencil buffer, restoring color");
+    _ogx_efb_save_to_buffer(s_stencil_format, width, height,
+                            s_stencil_buffer, OGX_EFB_COLOR);
 }
 
 static bool setup_tev_full(int *stages, int *tex_coords,
@@ -444,25 +465,7 @@ static bool draw_op(uint16_t op,
         drawColor = refColor;
     }
 
-    if (_ogx_efb_content_type == OGX_EFB_SCENE) {
-        debug(OGX_LOG_STENCIL, "Saving scene EFB, clearing, loading stencil");
-
-        GX_DrawDone();
-        _ogx_efb_save(OGX_EFB_COLOR);
-
-        load_stencil_into_efb();
-        /* We clear the bounding box because at the end of the drawing
-         * operations on the stencil buffer we will need to update the stencil
-         * texture which we use for the actual drawing, and the bounding box
-         * allows us to do it more efficiently. */
-        GX_DrawDone();
-        GX_ClearBoundingBox();
-        _ogx_setup_3D_projection();
-
-        /* When restoring the EFB we alter the cull mode, Z mode, alpha
-         * compare and more. All these settings need to be restored. */
-        _ogx_apply_state();
-    }
+    _ogx_efb_set_content_type(OGX_EFB_STENCIL);
 
     /* Unconditionally enable color updates when drawing on the stencil buffer.
      */
@@ -559,17 +562,7 @@ void _ogx_stencil_draw(OgxStencilDrawCallback callback, void *cb_data)
                 callback, cb_data);
     }
 
-    if (_ogx_efb_content_type == OGX_EFB_STENCIL) {
-        u16 width = GX_GetTexObjWidth(&s_stencil_texture);
-        u16 height = GX_GetTexObjHeight(&s_stencil_texture);
-        GX_DrawDone();
-        check_bounding_box();
-        debug(OGX_LOG_STENCIL, "Saving EFB to stencil buffer, restoring color");
-        _ogx_efb_save_to_buffer(s_stencil_format, width, height,
-                                s_stencil_buffer, OGX_EFB_COLOR);
-        _ogx_efb_restore(OGX_EFB_COLOR);
-        _ogx_efb_content_type = OGX_EFB_SCENE;
-    }
+    _ogx_efb_set_content_type(OGX_EFB_SCENE);
 
     glparamstate.dirty.bits.dirty_texture_gen = 1;
 }

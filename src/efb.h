@@ -51,11 +51,31 @@ typedef enum {
 
 extern OgxEfbContentType _ogx_efb_content_type;
 
-void _ogx_efb_save(OgxEfbFlags flags);
-void _ogx_efb_restore(OgxEfbFlags flags);
-
 void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
                              void *texels, OgxEfbFlags flags);
 void _ogx_efb_restore_texobj(GXTexObj *texobj);
+
+typedef struct {
+    GXTexObj texobj;
+    /* buffer-specific counter indicating what was the last draw operation
+     * saved into this buffer */
+    int draw_count;
+    /* The texel data are stored in the same memory block at the end of this
+     * struct */
+    _Alignas(32) uint8_t texels[0];
+} OgxEfbBuffer;
+
+void _ogx_efb_buffer_prepare(OgxEfbBuffer **buffer, uint8_t format);
+void _ogx_efb_buffer_handle_resize(OgxEfbBuffer **buffer);
+void _ogx_efb_buffer_save(OgxEfbBuffer *buffer, OgxEfbFlags flags);
+
+void _ogx_efb_set_content_type_real(OgxEfbContentType content_type);
+
+/* We inline this part since most of the times the desired content type will be
+ * the one already active */
+static inline void _ogx_efb_set_content_type(OgxEfbContentType content_type) {
+    if (content_type == _ogx_efb_content_type) return;
+    _ogx_efb_set_content_type_real(content_type);
+}
 
 #endif /* OPENGX_EFB_H */
