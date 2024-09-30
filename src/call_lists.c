@@ -104,6 +104,8 @@ typedef struct
             GLfloat z;
         } rotate;
 
+        float color[4];
+
         float matrix[16];
     } c;
 } Command;
@@ -264,6 +266,9 @@ static void run_command(Command *cmd)
         break;
     case COMMAND_FRONT_FACE:
         glFrontFace(cmd->c.mode);
+        break;
+    case COMMAND_COLOR:
+        glColor4fv(cmd->c.color);
         break;
     }
 
@@ -457,6 +462,9 @@ bool _ogx_call_list_append(CommandType op, ...)
         break;
     case COMMAND_FRONT_FACE:
         command->c.mode = va_arg(ap, GLenum);
+        break;
+    case COMMAND_COLOR:
+        floatcpy(command->c.color, va_arg(ap, GLfloat *), 4);
         break;
     }
     va_end(ap);

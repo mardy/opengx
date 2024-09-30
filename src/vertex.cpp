@@ -30,6 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
+#include "call_lists.h"
 #include "debug.h"
 #include "state.h"
 #include "utils.h"
@@ -51,10 +52,7 @@ T full_color()
 template <typename T>
 void set_current_color(T red, T green, T blue, T alpha = full_color<T>())
 {
-    if (glparamstate.imm_mode.in_gl_begin)
-        glparamstate.imm_mode.has_color = 1;
-
-    auto &c = glparamstate.imm_mode.current_color;
+    float c[4];
     if constexpr (std::is_floating_point<T>::value) {
         c[0] = red;
         c[1] = green;
@@ -71,6 +69,14 @@ void set_current_color(T red, T green, T blue, T alpha = full_color<T>())
         c[2] = blue / max;
         c[3] = alpha / max;
     }
+
+    if (glparamstate.imm_mode.in_gl_begin) {
+        glparamstate.imm_mode.has_color = 1;
+    } else {
+        HANDLE_CALL_LIST(COLOR, c);
+    }
+
+    floatcpy(glparamstate.imm_mode.current_color, c, 4);
 }
 
 static inline void set_current_tex_coords(float s, float t = 0)

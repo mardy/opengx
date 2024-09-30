@@ -35,6 +35,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "state.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Except when specified otherwise, the enum name matches the GL function
  * (e.g., COMMAND_ENABLE == glEnable)
  */
@@ -59,6 +63,7 @@ typedef enum {
     COMMAND_ROTATE,
     COMMAND_SCALE,
     COMMAND_FRONT_FACE,
+    COMMAND_COLOR,
 } CommandType;
 
 #define HANDLE_CALL_LIST(operation, ...) \
@@ -69,5 +74,9 @@ typedef enum {
     }
 
 bool _ogx_call_list_append(CommandType op, ...);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_CALL_LISTS_H */
