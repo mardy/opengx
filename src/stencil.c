@@ -549,8 +549,6 @@ void _ogx_stencil_draw(OgxStencilDrawCallback callback, void *cb_data)
                 callback, cb_data);
     }
 
-    _ogx_efb_set_content_type(OGX_EFB_SCENE);
-
     glparamstate.dirty.bits.dirty_texture_gen = 1;
 }
 

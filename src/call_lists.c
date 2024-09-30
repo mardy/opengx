@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "call_lists.h"
 #include "debug.h"
+#include "efb.h"
 #include "stencil.h"
 #include "utils.h"
 
@@ -192,6 +193,8 @@ static void flat_draw_list(void *cb_data)
 static void run_gx_list(struct GXDisplayList *gxlist)
 {
     struct client_state cs;
+
+    _ogx_efb_set_content_type(OGX_EFB_SCENE);
 
     cs = glparamstate.cs;
     glparamstate.cs = gxlist->cs;

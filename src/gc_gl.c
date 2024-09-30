@@ -1161,6 +1161,8 @@ void glClear(GLbitfield mask)
         return;
     }
 
+    _ogx_efb_set_content_type(OGX_EFB_SCENE);
+
     if (mask & GL_STENCIL_BUFFER_BIT) {
         _ogx_stencil_clear();
     }
@@ -2359,6 +2361,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
             _ogx_stencil_draw(flat_draw_geometry, &draw_data);
         }
 
+        _ogx_efb_set_content_type(OGX_EFB_SCENE);
         should_draw = _ogx_setup_render_stages();
         _ogx_apply_state();
 
@@ -2401,6 +2404,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
             _ogx_stencil_draw(flat_draw_elements, &draw_data);
         }
 
+        _ogx_efb_set_content_type(OGX_EFB_SCENE);
         should_draw = _ogx_setup_render_stages();
         _ogx_apply_state();
         /* When not building a display list, we can optimize the drawing by
