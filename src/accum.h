@@ -1,5 +1,4 @@
 /*****************************************************************************
-Copyright (c) 2011  David Guillen Fandos (david@davidgf.net)
 Copyright (c) 2024  Alberto Mardegan (mardy@users.sourceforge.net)
 All rights reserved.
 
@@ -30,58 +29,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-#ifndef OPENGX_EFB_H
-#define OPENGX_EFB_H
+#ifndef OPENGX_ACCUM_H
+#define OPENGX_ACCUM_H
 
-#include <GL/gl.h>
-#include <malloc.h>
-#include <ogc/gx.h>
-#include <ogc/system.h>
+void _ogx_accum_clear(void);
+void _ogx_accum_save_to_efb(void);
+void _ogx_accum_load_into_efb(void);
 
-typedef enum {
-    OGX_EFB_NONE = 0,
-    OGX_EFB_CLEAR = 1 << 0,
-    OGX_EFB_COLOR = 1 << 1,
-    OGX_EFB_ZBUFFER = 1 << 2,
-} OgxEfbFlags;
-
-typedef enum {
-    OGX_EFB_SCENE = 1,
-    OGX_EFB_STENCIL,
-    OGX_EFB_ACCUM,
-} OgxEfbContentType;
-
-extern OgxEfbContentType _ogx_efb_content_type;
-
-void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
-                             void *texels, OgxEfbFlags flags);
-void _ogx_efb_restore_texobj(GXTexObj *texobj);
-
-typedef struct {
-    GXTexObj texobj;
-    /* buffer-specific counter indicating what was the last draw operation
-     * saved into this buffer */
-    int draw_count;
-    /* The texel data are stored in the same memory block at the end of this
-     * struct */
-    _Alignas(32) uint8_t texels[0];
-} OgxEfbBuffer;
-
-void _ogx_efb_buffer_prepare(OgxEfbBuffer **buffer, uint8_t format);
-void _ogx_efb_buffer_handle_resize(OgxEfbBuffer **buffer);
-void _ogx_efb_buffer_save(OgxEfbBuffer *buffer, OgxEfbFlags flags);
-static inline void *_ogx_efb_buffer_get_texels(OgxEfbBuffer *buffer) {
-    void *texels = GX_GetTexObjData(&buffer->texobj);
-    return texels ? MEM_PHYSICAL_TO_K0(texels) : NULL;
-}
-
-void _ogx_efb_set_content_type_real(OgxEfbContentType content_type);
-
-/* We inline this part since most of the times the desired content type will be
- * the one already active */
-static inline void _ogx_efb_set_content_type(OgxEfbContentType content_type) {
-    if (content_type == _ogx_efb_content_type) return;
-    _ogx_efb_set_content_type_real(content_type);
-}
-
-#endif /* OPENGX_EFB_H */
+#endif /* OPENGX_ACCUM_H */

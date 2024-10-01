@@ -42,7 +42,7 @@ int _ogx_functions_c = 0; /* referenced by gc_gl.c, see the comment in there */
 
 #define PROC(name) { #name, name }
 static const ProcMap s_proc_map[] = {
-    //PROC(glAccum),
+    PROC(glAccum),
     PROC(glAlphaFunc),
     //PROC(glAreTexturesResident),
     PROC(glArrayElement),
@@ -54,7 +54,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glCallList),
     PROC(glCallLists),
     PROC(glClear),
-    //PROC(glClearAccum),
+    PROC(glClearAccum),
     PROC(glClearColor),
     PROC(glClearDepth),
     //PROC(glClearIndex),

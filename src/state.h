@@ -108,6 +108,7 @@ typedef struct glparams_
     int glcurtex;
     int draw_count;
     GXColor clear_color;
+    GXColor accum_clear_color;
     float clearz;
     float polygon_offset_factor;
     float polygon_offset_units;

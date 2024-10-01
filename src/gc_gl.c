@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 *****************************************************************************/
 
+#include "accum.h"
 #include "call_lists.h"
 #include "clip.h"
 #include "debug.h"
@@ -212,6 +213,10 @@ void ogx_initialize()
     glparamstate.clear_color.g = 0;
     glparamstate.clear_color.b = 0;
     glparamstate.clear_color.a = 1;
+    glparamstate.accum_clear_color.r = 0;
+    glparamstate.accum_clear_color.g = 0;
+    glparamstate.accum_clear_color.b = 0;
+    glparamstate.accum_clear_color.a = 0;
     glparamstate.clearz = 1.0f;
 
     glparamstate.ztest = GX_FALSE; // Depth test disabled but z write enabled
@@ -457,6 +462,9 @@ void _ogx_efb_set_content_type_real(OgxEfbContentType content_type)
     case OGX_EFB_STENCIL:
         _ogx_stencil_save_to_efb();
         break;
+    case OGX_EFB_ACCUM:
+        _ogx_accum_save_to_efb();
+        break;
     }
 
     /* Restore data from previously stored EFB for this content type */
@@ -466,6 +474,9 @@ void _ogx_efb_set_content_type_real(OgxEfbContentType content_type)
         break;
     case OGX_EFB_STENCIL:
         _ogx_stencil_load_into_efb();
+        break;
+    case OGX_EFB_ACCUM:
+        _ogx_accum_load_into_efb();
         break;
     }
     _ogx_efb_content_type = content_type;
@@ -1165,6 +1176,10 @@ void glClear(GLbitfield mask)
 
     if (mask & GL_STENCIL_BUFFER_BIT) {
         _ogx_stencil_clear();
+    }
+
+    if (mask & GL_ACCUM_BUFFER_BIT) {
+        _ogx_accum_clear();
     }
 
     if (mask & GL_DEPTH_BUFFER_BIT) {
