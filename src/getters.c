@@ -188,6 +188,9 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_MAX_NAME_STACK_DEPTH:
         *params = MAX_NAME_STACK_DEPTH;
         return;
+    case GL_MAX_PIXEL_MAP_TABLE:
+        *params = MAX_PIXEL_MAP_TABLE;
+        break;
     case GL_NAME_STACK_DEPTH:
         *params = glparamstate.name_stack_depth;
         return;
@@ -214,6 +217,24 @@ void glGetIntegerv(GLenum pname, GLint *params)
         break;
     case GL_PACK_ALIGNMENT:
         *params = glparamstate.pack_alignment;
+        break;
+    case GL_PIXEL_MAP_I_TO_I_SIZE:
+    case GL_PIXEL_MAP_S_TO_S_SIZE:
+    case GL_PIXEL_MAP_I_TO_R_SIZE:
+    case GL_PIXEL_MAP_I_TO_G_SIZE:
+    case GL_PIXEL_MAP_I_TO_B_SIZE:
+    case GL_PIXEL_MAP_I_TO_A_SIZE:
+    case GL_PIXEL_MAP_R_TO_R_SIZE:
+    case GL_PIXEL_MAP_G_TO_G_SIZE:
+    case GL_PIXEL_MAP_B_TO_B_SIZE:
+    case GL_PIXEL_MAP_A_TO_A_SIZE:
+        if (glparamstate.pixel_maps) {
+            int index = pname - GL_PIXEL_MAP_I_TO_I_SIZE;
+            *params = glparamstate.pixel_maps->sizes[index];
+        } else {
+            /* By default, there's one entry (0.0) in the table */
+            *params = 1;
+        }
         break;
     case GL_STENCIL_BITS:
         *params = _ogx_stencil_flags & OGX_STENCIL_8BIT ? 8 : 4;

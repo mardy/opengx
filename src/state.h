@@ -51,6 +51,7 @@ POSSIBILITY OF SUCH DAMAGE.
 /* A TEV stage can process up to 2 clip planes, so we could increase this if
  * needed */
 #define MAX_CLIP_PLANES 6
+#define MAX_PIXEL_MAP_TABLE 32 /* 32 is the minimum required */
 
 typedef struct {
     float pos[3];
@@ -72,6 +73,15 @@ typedef enum {
     OGX_TEXGEN_R = 1 << 2,
     OGX_TEXGEN_Q = 1 << 3,
 } OgxTexgenMask;
+
+typedef uint8_t OgxPixelMap[MAX_PIXEL_MAP_TABLE];
+typedef struct {
+    /* 10 is the number of pixel maps defined by OpenGL, from
+     * GL_PIXEL_MAP_I_TO_I to GL_PIXEL_MAP_A_TO_A (see the documentation of
+     * glPixelMap for an explanation) */
+    uint8_t sizes[10];
+    OgxPixelMap maps[10];
+} OgxPixelMapTables;
 
 typedef struct glparams_
 {
@@ -116,6 +126,8 @@ typedef struct glparams_
     float clearz;
     float polygon_offset_factor;
     float polygon_offset_units;
+
+    OgxPixelMapTables *pixel_maps; /* Only allocated if glPixelMap is called */
 
     GLuint *name_stack;
     GLuint *select_buffer;

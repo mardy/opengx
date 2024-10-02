@@ -100,3 +100,94 @@ void glRasterPos4dv(const GLdouble *v) { set_pos(v[0], v[1], v[2], v[3]); }
 void glRasterPos4fv(const GLfloat *v) { set_pos(v[0], v[1], v[2], v[3]); }
 void glRasterPos4iv(const GLint *v) { set_pos(v[0], v[1], v[2], v[3]); }
 void glRasterPos4sv(const GLshort *v) { set_pos(v[0], v[1], v[2], v[3]); }
+
+static void set_pixel_map(GLenum map, GLsizei mapsize, uint8_t *values)
+{
+    int index = map - GL_PIXEL_MAP_I_TO_I_SIZE;
+    if (index < 0 || index >= 10) {
+        set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (!glparamstate.pixel_maps) {
+        glparamstate.pixel_maps =
+            (OgxPixelMapTables*)malloc(sizeof(OgxPixelMapTables));
+        memset(glparamstate.pixel_maps->sizes, 0,
+               sizeof(glparamstate.pixel_maps->sizes));
+    }
+
+    glparamstate.pixel_maps->sizes[index] = mapsize;
+    memcpy(glparamstate.pixel_maps->maps[index], values, mapsize);
+}
+
+void glPixelMapfv(GLenum map, GLsizei mapsize, const GLfloat *values)
+{
+    uint8_t bytevalues[MAX_PIXEL_MAP_TABLE];
+    for (int i = 0; i < mapsize; i++) {
+        bytevalues[i] = values[i] * 255;
+    }
+    set_pixel_map(map, mapsize, bytevalues);
+}
+
+void glPixelMapuiv(GLenum map, GLsizei mapsize, const GLuint *values)
+{
+    uint8_t bytevalues[MAX_PIXEL_MAP_TABLE];
+    for (int i = 0; i < mapsize; i++) {
+        bytevalues[i] = values[i] >> 24;
+    }
+    set_pixel_map(map, mapsize, bytevalues);
+}
+
+void glPixelMapusv(GLenum map, GLsizei mapsize, const GLushort *values)
+{
+    uint8_t bytevalues[MAX_PIXEL_MAP_TABLE];
+    for (int i = 0; i < mapsize; i++) {
+        bytevalues[i] = values[i] >> 8;
+    }
+    set_pixel_map(map, mapsize, bytevalues);
+}
+
+template <typename T>
+void get_pixel_map(GLenum map, T *values)
+{
+    int index = map - GL_PIXEL_MAP_I_TO_I_SIZE;
+    if (index < 0 || index >= 10) {
+        set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (!glparamstate.pixel_maps) {
+        *values = 0;
+        return;
+    }
+
+    uint8_t map_size = glparamstate.pixel_maps->sizes[index];
+    for (int i = 0; i < map_size; i++) {
+        T value = glparamstate.pixel_maps->maps[index][i];
+        /* We must map value to the target type: use full range for integer
+         * types, and 0.0-1.0 for floats */
+        if constexpr (std::is_floating_point<T>::value) {
+            values[i] = value / 255.0f;
+        } else {
+            for (int b = 1; b < sizeof(T); b++) {
+                value |= value << 8;
+            }
+            values[i] = value;
+        }
+    }
+}
+
+void glGetPixelMapfv(GLenum map, GLfloat *values)
+{
+    get_pixel_map(map, values);
+}
+
+void glGetPixelMapuiv(GLenum map, GLuint *values)
+{
+    get_pixel_map(map, values);
+}
+
+void glGetPixelMapusv(GLenum map, GLushort *values)
+{
+    get_pixel_map(map, values);
+}

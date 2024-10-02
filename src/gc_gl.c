@@ -287,6 +287,8 @@ void ogx_initialize()
     glparamstate.depth_near = 0.0f;
     glparamstate.depth_far = 1.0f;
 
+    glparamstate.pixel_maps = NULL;
+
     // Set up lights default states
     glparamstate.lighting.enabled = 0;
     for (i = 0; i < MAX_LIGHTS; i++) {
