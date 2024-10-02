@@ -278,6 +278,15 @@ void ogx_initialize()
     glparamstate.pack_alignment = 4;
     glparamstate.unpack_alignment = 4;
 
+    glparamstate.raster_pos[0] = 0.0f;
+    glparamstate.raster_pos[1] = 0.0f;
+    glparamstate.raster_pos[2] = 0.0f;
+    glparamstate.raster_pos[3] = 1.0f;
+    glparamstate.raster_pos_valid = true;
+
+    glparamstate.depth_near = 0.0f;
+    glparamstate.depth_far = 1.0f;
+
     // Set up lights default states
     glparamstate.lighting.enabled = 0;
     for (i = 0; i < MAX_LIGHTS; i++) {
@@ -419,7 +428,7 @@ void _ogx_setup_2D_projection()
     guOrtho(proj,
             top, top + (glparamstate.viewport[3] - 1),
             left, left + (glparamstate.viewport[2] - 1),
-            0, 1);
+            glparamstate.depth_near, glparamstate.depth_far);
     GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
 
     glparamstate.dirty.bits.dirty_matrices = 1;
@@ -1283,6 +1292,12 @@ void glDepthMask(GLboolean flag)
     else
         glparamstate.zwrite = GX_TRUE;
     glparamstate.dirty.bits.dirty_z = 1;
+}
+
+void glDepthRange(GLclampd near_val, GLclampd far_val)
+{
+    glparamstate.depth_near = near_val;
+    glparamstate.depth_far = far_val;
 }
 
 GLint glRenderMode(GLenum mode)

@@ -110,6 +110,21 @@ static inline void gl_matrix_multiply(float *dst, float *b, float *a)
     dst[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
 }
 
+static inline void mtx44project(const Mtx44 p, const guVector *v,
+                                guVector *out)
+{
+    /* We skip all the matrix elements that we know are unused in a projection
+     * matrix */
+    out->x = p[0][0] * v->x + p[0][2] * v->z + p[0][3];
+    out->y = p[1][1] * v->y + p[1][2] * v->z + p[1][3];
+    out->z = p[2][2] * v->z + p[2][3];
+    if (p[3][2] != 0) {
+        out->x = -out->x;
+        out->y = -out->y;
+        out->z = -out->z;
+    }
+}
+
 static inline GXColor gxcol_new_fv(float *components)
 {
     GXColor c = {

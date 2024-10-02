@@ -110,6 +110,10 @@ void glGetDoublev(GLenum pname, GLdouble *params)
 
     glGetFloatv(pname, paramsf);
     switch (pname) {
+    case GL_CURRENT_RASTER_POSITION:
+        n = 4; break;
+    case GL_DEPTH_RANGE:
+        n = 2; break;
     case GL_MODELVIEW_MATRIX:
     case GL_PROJECTION_MATRIX:
         n = 16; break;
@@ -122,6 +126,13 @@ void glGetDoublev(GLenum pname, GLdouble *params)
 void glGetFloatv(GLenum pname, GLfloat *params)
 {
     switch (pname) {
+    case GL_CURRENT_RASTER_POSITION:
+        floatcpy(params, glparamstate.raster_pos, 4);
+        break;
+    case GL_DEPTH_RANGE:
+        params[0] = glparamstate.depth_near;
+        params[1] = glparamstate.depth_far;
+        break;
     case GL_MODELVIEW_MATRIX:
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 4; j++)
@@ -155,6 +166,9 @@ void glGetIntegerv(GLenum pname, GLint *params)
         *params =
             glparamstate.clip_plane_mask & (1 << (pname - GL_CLIP_PLANE0));
         return;
+    case GL_CURRENT_RASTER_POSITION_VALID:
+        *params = glparamstate.raster_pos_valid ? GL_TRUE : GL_FALSE;
+        break;
     case GL_DRAW_BUFFER:
     case GL_READ_BUFFER:
         *params = glparamstate.active_buffer;

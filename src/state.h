@@ -84,6 +84,9 @@ typedef struct glparams_
     float texture_eye_plane_t[4];
     float texture_object_plane_s[4];
     float texture_object_plane_t[4];
+    float raster_pos[4];
+    float depth_near;
+    float depth_far;
     int cur_modv_mat, cur_proj_mat;
 
     int viewport[4];
@@ -95,6 +98,7 @@ typedef struct glparams_
     unsigned char frontcw, cullenabled;
     bool color_update;
     bool polygon_offset_fill;
+    bool raster_pos_valid;
     uint8_t alpha_func, alpha_ref, alphatest_enabled;
     uint8_t clip_plane_mask;
     uint16_t texture_env_mode;
