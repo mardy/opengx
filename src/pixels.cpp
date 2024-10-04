@@ -576,7 +576,9 @@ void load_texture_typed(const void *src, int width, int height,
     // TODO: add alignment options
     using DataType = typename READER::type;
 
-    int srcpitch = READER::pitch_for_width(width);
+    int row_length = glparamstate.unpack_row_length > 0 ?
+        glparamstate.unpack_row_length : width;
+    int srcpitch = READER::pitch_for_width(row_length);
 
     for (int ry = 0; ry < height; ry++) {
         const DataType *srcline = READER::row_ptr(src, ry, srcpitch);
@@ -609,11 +611,75 @@ void load_texture(const void *data, GLenum type, int width, int height,
     }
 }
 
+static int get_pixel_size_in_bits(GLenum format, GLenum type)
+{
+    int type_size = 0;
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        type_size = sizeof(GLbyte); break;
+    case GL_UNSIGNED_SHORT:
+        type_size = sizeof(GLshort); break;
+    case GL_UNSIGNED_INT:
+        type_size = sizeof(GLint); break;
+    case GL_FLOAT:
+        type_size = sizeof(GLfloat); break;
+    case GL_UNSIGNED_BYTE_3_3_2:
+    case GL_UNSIGNED_BYTE_2_3_3_REV:
+    case GL_UNSIGNED_SHORT_5_6_5:
+    case GL_UNSIGNED_SHORT_5_6_5_REV:
+    case GL_UNSIGNED_SHORT_4_4_4_4:
+    case GL_UNSIGNED_SHORT_4_4_4_4_REV:
+    case GL_UNSIGNED_SHORT_5_5_5_1:
+    case GL_UNSIGNED_SHORT_1_5_5_5_REV:
+    case GL_UNSIGNED_INT_8_8_8_8:
+    case GL_UNSIGNED_INT_8_8_8_8_REV:
+    case GL_UNSIGNED_INT_10_10_10_2:
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+        {
+            const MasksPerType *mask =
+                CompoundDataReader::find_mask_per_type(type);
+            return mask->bytes * 8;
+        }
+    case GL_BITMAP:
+        return 1;
+    default:
+        warning("Unknown texture data type %x\n", type);
+    }
+
+    const ComponentsPerFormat *c =
+        GenericDataReader<uint8_t>::find_component_data(format);
+    if (!c) {
+        warning("Unknown texture format %x\n", format);
+        return 0;
+    }
+
+    return c->components_per_pixel * type_size * 8;
+}
+
 void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
                            int width, int height,
                            void *dst, uint32_t gx_format,
                            int x, int y, int dstpitch)
 {
+    /* The GL_UNPACK_SKIP_ROWS and GL_UNPACK_SKIP_PIXELS can be handled here by
+     * modifiying the source data pointer. */
+    bool need_skip_pixels = false;
+    int row_length = glparamstate.unpack_row_length > 0 ?
+        glparamstate.unpack_row_length : width;
+    if (glparamstate.unpack_skip_pixels > 0 || glparamstate.unpack_skip_rows > 0) {
+        int pixel_size_bits = get_pixel_size_in_bits(format, type);
+        int row_size_bytes = (row_length * pixel_size_bits + 7) / 8;
+        /* For bitmaps, the skip_pixels case is handled in the reader itself,
+         * since we cannot skip partial bytes here. */
+        int skip_pixels = 0;
+        if (pixel_size_bits >= 8) {
+            skip_pixels = glparamstate.unpack_skip_pixels * pixel_size_bits;
+        } else {
+            need_skip_pixels = true;
+        }
+        data = static_cast<const uint8_t*>(data) + skip_pixels +
+            glparamstate.unpack_skip_rows * row_size_bytes;
+    }
     /* Accelerate the most common transformations by using the specialized
      * readers. We only do this for some transformations, since every
      * instantiation of the template takes some space, and the number of
@@ -727,7 +793,20 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         warning("Unknown texture data type %x\n", type);
     }
 
+    int skip_pixels_after = 0;
+    if (need_skip_pixels) {
+        for (int i = 0; i < glparamstate.unpack_skip_pixels; i++) {
+            reader->read();
+        }
+        skip_pixels_after = row_length - width;
+    }
+
     for (int ry = 0; ry < height; ry++) {
+        if (ry > 0) {
+            for (int i = 0; i < skip_pixels_after; i++) {
+                reader->read();
+            }
+        }
         for (int rx = 0; rx < width; rx++) {
             GXColor c = reader->read();
             texel->setColor(c);
