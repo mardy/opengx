@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "debug.h"
 #include "opengx.h"
+#include "state.h"
 
 #include <algorithm>
 #include <math.h>
@@ -211,6 +212,44 @@ struct TexelA8: public Texel8 {
     void setColor(GXColor c) override {
         value = c.a;
     }
+};
+
+struct TexelI4: public Texel {
+    TexelI4() = default;
+    TexelI4(uint8_t value):
+        value(value >> 4) {}
+
+    void store(void *texture, int x, int y, int pitch) override {
+        int block_x = x / 8;
+        int block_y = y / 8;
+        uint8_t *d = static_cast<uint8_t*>(texture) +
+            block_y * pitch * 8 + block_x * 32 + (y % 8) * 4 + (x % 8) / 2;
+        uint8_t texel_pair = d[0];
+        /* This is extremely inefficient! TODO: rework the Texel classes so
+         * that they operate as a stream writer, similarly to the reader
+         * classes. */
+        if (x % 2 == 1) {
+            texel_pair &= 0xf0;
+            texel_pair |= (value & 0xf);
+        } else {
+            texel_pair &= 0x0f;
+            texel_pair |= (value << 4);
+        }
+        d[0] = texel_pair;
+    }
+
+    static inline int compute_pitch(int width) {
+        /* texel are in 8x8 blocks, each element 4 bits wide */
+        return ((width + 7) / 8) * 4;
+    }
+
+    int pitch_for_width(int width) override { return compute_pitch(width); }
+
+    void setColor(GXColor c) override {
+        value = c.r;
+    }
+
+    uint8_t value;
 };
 
 template <typename T> static inline uint8_t component(T value);
@@ -433,6 +472,34 @@ struct CompoundDataReader: public DataReaderBase {
     GLenum format;
 };
 
+/* This class handles reading of pixels from bitmap (1-bit depth) */
+struct BitmapDataReader: public DataReaderBase {
+    BitmapDataReader() = default;
+    /* The OpenGL spec fixes the format of bitmaps to GL_COLOR_INDEX, so no
+     * need to have it as a parameter here */
+    BitmapDataReader(const void *data):
+        data(static_cast<const uint8_t *>(data)) {
+            // TODO: add handling of row width and row alignment (to all readers!)
+    }
+
+    inline uint8_t read_pixel() const {
+        uint8_t byte = data[n_read / 8];
+        int shift = glparamstate.unpack_lsb_first ?
+            (n_read % 8) : (7 - n_read % 8);
+        bool bit = (byte >> shift) & 0x1;
+        return bit ? 255 : 0;
+    }
+
+    GXColor read() override {
+        uint8_t pixel = read_pixel();
+        n_read++;
+        return { pixel, pixel, pixel, 255 };
+    }
+
+    const uint8_t *data;
+    int n_read = 0;
+};
+
 static const struct ComponentsPerFormat {
     GLenum format;
     char components_per_pixel;
@@ -578,11 +645,13 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         TexelRGB565,
         TexelIA8,
         TexelI8,
+        TexelI4,
         TexelA8
     > texel_v;
     Texel *texel;
 
     std::variant<
+        BitmapDataReader,
         CompoundDataReader,
         GenericDataReader<uint8_t>,
         GenericDataReader<uint16_t>,
@@ -611,6 +680,10 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
     case GX_TF_A8:
         texel_v = TexelA8();
         texel = &std::get<TexelA8>(texel_v);
+        break;
+    case GX_TF_I4:
+        texel_v = TexelI4();
+        texel = &std::get<TexelI4>(texel_v);
         break;
     }
 
@@ -646,6 +719,10 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         reader_v = CompoundDataReader(data, format, type);
         reader = &std::get<CompoundDataReader>(reader_v);
         break;
+    case GL_BITMAP:
+        reader_v = BitmapDataReader(data);
+        reader = &std::get<BitmapDataReader>(reader_v);
+        break;
     default:
         warning("Unknown texture data type %x\n", type);
     }
@@ -670,6 +747,8 @@ int _ogx_pitch_for_width(uint32_t gx_format, int width)
     case GX_TF_I8:
     case GX_TF_A8:
         return TexelI8::compute_pitch(width);
+    case GX_TF_I4:
+        return TexelI4::compute_pitch(width);
     default:
         return -1;
     }

@@ -38,6 +38,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <gccore.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Constant definition. Here are the limits of this implementation.
 // Can be changed with care.
 
@@ -275,5 +279,9 @@ extern glparams_ _ogx_state;
 #define texture_list _ogx_state.textures
 
 void _ogx_apply_state(void);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OGX_STATE_H */
