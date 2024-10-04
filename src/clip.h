@@ -35,12 +35,23 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <GL/gl.h>
 #include <malloc.h>
+#include <ogc/gu.h>
 #include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void _ogx_clip_enabled(int plane);
 void _ogx_clip_disabled(int plane);
 
 void _ogx_clip_setup_tev(int *stages, int *tex_coords,
                          int *tex_maps, int *tex_mtxs);
+
+bool _ogx_clip_is_point_clipped(const guVector *p);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_CLIP_H */

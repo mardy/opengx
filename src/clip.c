@@ -125,6 +125,24 @@ static void mtx44_multiply(const ClipPlane in, const Mtx44 m, ClipPlane out)
     }
 }
 
+bool _ogx_clip_is_point_clipped(const guVector *p)
+{
+    if (glparamstate.clip_plane_mask == 0) return false;
+
+    for (int i = 0; i < MAX_CLIP_PLANES; i++) {
+        if (!(glparamstate.clip_plane_mask & (1 << i))) continue;
+
+        guVector plane = {
+            glparamstate.clip_planes[i][0],
+            glparamstate.clip_planes[i][1],
+            glparamstate.clip_planes[i][2],
+        };
+        if (guVecDotProduct(&plane, p) + glparamstate.clip_planes[i][3] < 0)
+            return true;
+    }
+    return false;
+}
+
 void _ogx_clip_setup_tev(int *stages, int *tex_coords,
                          int *tex_maps, int *tex_mtxs)
 {
