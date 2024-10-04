@@ -49,7 +49,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glBegin),
     PROC(glBegin),
     PROC(glBindTexture),
-    //PROC(glBitmap),
+    PROC(glBitmap),
     PROC(glBlendFunc),
     PROC(glCallList),
     PROC(glCallLists),

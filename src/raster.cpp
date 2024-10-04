@@ -31,6 +31,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "clip.h"
 #include "debug.h"
+#include "pixels.h"
 #include "state.h"
 #include "utils.h"
 
@@ -190,4 +191,112 @@ void glGetPixelMapuiv(GLenum map, GLuint *values)
 void glGetPixelMapusv(GLenum map, GLushort *values)
 {
     get_pixel_map(map, values);
+}
+
+/* Blits a texture at the desired screen position, with fogging and blending
+ * enabled, as suitable for the raster functions.
+ * Since the color channel and the TEV setup differs between the various
+ * functions, it's left up to the caller.
+ */
+static void draw_raster_texture(GXTexObj *texture, int width, int height,
+                                int screen_x, int screen_y, int screen_z)
+{
+    _ogx_apply_state();
+    _ogx_setup_2D_projection();
+
+    GX_LoadTexObj(texture, GX_TEXMAP0);
+
+    GX_ClearVtxDesc();
+    GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+    GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_U8, 0);
+    GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    GX_SetNumTexGens(1);
+    GX_SetNumTevStages(1);
+    GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+
+    GX_SetCullMode(GX_CULL_NONE);
+    glparamstate.dirty.bits.dirty_cull = 1;
+
+    GX_SetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, GX_BL_INVSRCALPHA,
+                    GX_LO_CLEAR);
+    glparamstate.dirty.bits.dirty_blend = 1;
+
+    /* The first row we read from the bitmap is the bottom row, so let's take
+     * this into account and flip the image vertically */
+    GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
+    GX_Position3f32(screen_x, screen_y, screen_z);
+    GX_TexCoord2u8(0, 0);
+    GX_Position3f32(screen_x, screen_y - height, screen_z);
+    GX_TexCoord2u8(0, 1);
+    GX_Position3f32(screen_x + width, screen_y - height, screen_z);
+    GX_TexCoord2u8(1, 1);
+    GX_Position3f32(screen_x + width, screen_y, screen_z);
+    GX_TexCoord2u8(1, 0);
+    GX_End();
+}
+
+void glBitmap(GLsizei width, GLsizei height,
+              GLfloat xorig, GLfloat yorig,
+              GLfloat xmove, GLfloat ymove,
+              const GLubyte *bitmap)
+{
+    if (width < 0 || height < 0) {
+        set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    if (!glparamstate.raster_pos_valid) return;
+
+    float pos_x = int(glparamstate.raster_pos[0] - xorig);
+    float pos_y = int(glparamstate.viewport[3] -
+                      (glparamstate.raster_pos[1] - yorig));
+    float pos_z = -glparamstate.raster_pos[2];
+
+    /* We don't have a 1-bit format in GX, so use a 4-bit format */
+    u32 size = GX_GetTexBufferSize(width, height, GX_TF_I4, 0, GX_FALSE);
+    void *texels = memalign(32, size);
+    memset(texels, 0, size);
+    int dstpitch = _ogx_pitch_for_width(GX_TF_I4, width);
+    _ogx_bytes_to_texture(bitmap, GL_COLOR_INDEX, GL_BITMAP,
+                          width, height, texels, GX_TF_I4,
+                          0, 0, dstpitch);
+    DCFlushRange(texels, size);
+
+    GXTexObj texture;
+    GX_InitTexObj(&texture, texels,
+                  width, height, GX_TF_I4, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjLOD(&texture, GX_NEAR, GX_NEAR,
+                     0.0f, 0.0f, 0, 0, 0, GX_ANISO_1);
+    GX_InvalidateTexAll();
+
+    GX_SetNumChans(1);
+    GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_REG,
+                   0, GX_DF_NONE, GX_AF_NONE);
+    GXColor ccol = gxcol_new_fv(glparamstate.imm_mode.current_color);
+    GX_SetTevColor(GX_TEVREG0, ccol);
+
+    /* In data: d: Raster Color */
+    GX_SetTevColorIn(GX_TEVSTAGE0,
+                     GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_C0);
+    /* Multiply the alpha from the texture with the alpha from the raster
+     * color. */
+    GX_SetTevAlphaIn(GX_TEVSTAGE0,
+                     GX_CA_ZERO, GX_CA_TEXA, GX_CA_A0, GX_CA_ZERO);
+    GX_SetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1,
+                     GX_TRUE, GX_TEVPREV);
+    GX_SetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1,
+                     GX_TRUE, GX_TEVPREV);
+    draw_raster_texture(&texture, width, height, pos_x, pos_y, pos_z);
+
+    /* We need to wait for the drawing to be complete before freeing the
+     * texture memory */
+    GX_SetDrawDone();
+
+    glparamstate.raster_pos[0] += xmove;
+    glparamstate.raster_pos[1] += ymove;
+
+    GX_WaitDrawDone();
+    free(texels);
 }
