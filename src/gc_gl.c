@@ -823,6 +823,11 @@ void glColorMaterial(GLenum face, GLenum mode)
     glparamstate.lighting.color_material_mode = mode;
 }
 
+void glPixelStoref(GLenum pname, GLfloat param)
+{
+    glPixelStorei(pname, param);
+}
+
 void glPixelStorei(GLenum pname, GLint param)
 {
     switch (pname) {

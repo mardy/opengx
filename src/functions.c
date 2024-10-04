@@ -237,7 +237,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glPixelMapfv),
     PROC(glPixelMapuiv),
     PROC(glPixelMapusv),
-    //PROC(glPixelStoref),
+    PROC(glPixelStoref),
     PROC(glPixelStorei),
     //PROC(glPixelTransferf),
     //PROC(glPixelTransferi),
