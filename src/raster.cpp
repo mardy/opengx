@@ -300,3 +300,46 @@ void glBitmap(GLsizei width, GLsizei height,
     GX_WaitDrawDone();
     free(texels);
 }
+
+void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type,
+                  const GLvoid *pixels)
+{
+    if (width < 0 || height < 0) {
+        set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    if (!glparamstate.raster_pos_valid) return;
+
+    float pos_x = int(glparamstate.raster_pos[0]);
+    float pos_y = int(glparamstate.viewport[3] -
+                      (glparamstate.raster_pos[1]));
+    float pos_z = -glparamstate.raster_pos[2];
+
+    uint8_t gx_format = _ogx_find_best_gx_format(format, format,
+                                                 width, height);
+    u32 size = GX_GetTexBufferSize(width, height, gx_format, 0, GX_FALSE);
+    void *texels = memalign(32, size);
+    int dstpitch = _ogx_pitch_for_width(gx_format, width);
+    _ogx_bytes_to_texture(pixels, format, type,
+                          width, height, texels, gx_format,
+                          0, 0, dstpitch);
+    DCFlushRange(texels, size);
+
+    GXTexObj texture;
+    GX_InitTexObj(&texture, texels,
+                  width, height, gx_format, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjLOD(&texture, GX_NEAR, GX_NEAR,
+                     0.0f, 0.0f, 0, 0, 0, GX_ANISO_1);
+    GX_InvalidateTexAll();
+
+    GX_SetNumChans(0);
+    GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+    draw_raster_texture(&texture, width, height, pos_x, pos_y, pos_z);
+
+    /* We need to wait for the drawing to be complete before freeing the
+     * texture memory */
+    GX_DrawDone();
+
+    free(texels);
+}
