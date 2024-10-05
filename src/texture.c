@@ -333,16 +333,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
 
-    // Simplify and avoid stupid conversions (which waste space for no gain)
-    if (format == GL_RGB && internalFormat == GL_RGBA)
-        internalFormat = GL_RGB;
-
-    if (format == GL_LUMINANCE_ALPHA && internalFormat == GL_RGBA)
-        internalFormat = GL_LUMINANCE_ALPHA;
-
-    uint32_t gx_format = _ogx_gl_format_to_gx(internalFormat);
-    if (gx_format == GX_TF_CMPR && (width < 8 || height < 8))
-        return; // Cannot take compressed textures under 8x8 (4 blocks of 4x4, 32B)
+    uint8_t gx_format = _ogx_find_best_gx_format(format, internalFormat,
+                                                 width, height);
 
     // We *may* need to delete and create a new texture, depending if the user wants to add some mipmap levels
     // or wants to create a new texture from scratch

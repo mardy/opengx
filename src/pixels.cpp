@@ -833,7 +833,7 @@ int _ogx_pitch_for_width(uint32_t gx_format, int width)
     }
 }
 
-uint32_t _ogx_gl_format_to_gx(GLenum format)
+uint8_t _ogx_gl_format_to_gx(GLenum format)
 {
     switch (format) {
     case 3:
@@ -856,6 +856,24 @@ uint32_t _ogx_gl_format_to_gx(GLenum format)
     default:
         return GX_TF_CMPR;
     }
+}
+
+uint8_t _ogx_find_best_gx_format(GLenum format, GLenum internal_format,
+                                 int width, int height)
+{
+    // Simplify and avoid stupid conversions (which waste space for no gain)
+    if (format == GL_RGB && internal_format == GL_RGBA)
+        internal_format = GL_RGB;
+
+    if (format == GL_LUMINANCE_ALPHA && internal_format == GL_RGBA)
+        internal_format = GL_LUMINANCE_ALPHA;
+
+    uint8_t gx_format = _ogx_gl_format_to_gx(internal_format);
+    if (gx_format == GX_TF_CMPR && (width < 8 || height < 8)) {
+        // Cannot take compressed textures under 8x8 (4 blocks of 4x4, 32B)
+        gx_format = GX_TF_RGB565;
+    }
+    return gx_format;
 }
 
 #define DEFINE_FAST_CONVERSION(reader, texel) \
