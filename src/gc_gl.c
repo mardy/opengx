@@ -425,11 +425,11 @@ void _ogx_setup_2D_projection()
 
     Mtx44 proj;
     /* The 0.5f is to center the drawing into the pixels. */
-    float left = glparamstate.viewport[0] + 0.5f;
-    float top = glparamstate.viewport[1] + 0.5f;
+    float left = glparamstate.viewport[0] - 0.5f;
+    float top = glparamstate.viewport[1] - 0.5f;
     guOrtho(proj,
-            top, top + (glparamstate.viewport[3] - 1),
-            left, left + (glparamstate.viewport[2] - 1),
+            top, top + glparamstate.viewport[3],
+            left, left + glparamstate.viewport[2],
             glparamstate.depth_near, glparamstate.depth_far);
     GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
 
