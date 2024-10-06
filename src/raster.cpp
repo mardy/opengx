@@ -39,6 +39,12 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <malloc.h>
 #include <type_traits>
 
+void glPixelZoom(GLfloat xfactor, GLfloat yfactor)
+{
+    glparamstate.pixel_zoom_x = xfactor;
+    glparamstate.pixel_zoom_y = yfactor;
+}
+
 static void set_current_raster_pos(const guVector *pos)
 {
     guVector pos_mv;
@@ -226,22 +232,22 @@ static void draw_raster_texture(GXTexObj *texture, int width, int height,
 
     int y0, y1;
     if (height < 0) {
-        y0 = screen_y + height;
+        y0 = screen_y + height * glparamstate.pixel_zoom_y;
         y1 = screen_y;
     } else {
         /* The first row we read from the bitmap is the bottom row, so let's take
          * this into account and flip the image vertically */
         y0 = screen_y;
-        y1 = screen_y - height;
+        y1 = screen_y - height * glparamstate.pixel_zoom_y;
     }
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
     GX_Position3f32(screen_x, y0, screen_z);
     GX_TexCoord2u8(0, 0);
     GX_Position3f32(screen_x, y1, screen_z);
     GX_TexCoord2u8(0, 1);
-    GX_Position3f32(screen_x + width, y1, screen_z);
+    GX_Position3f32(screen_x + width * glparamstate.pixel_zoom_x, y1, screen_z);
     GX_TexCoord2u8(1, 1);
-    GX_Position3f32(screen_x + width, y0, screen_z);
+    GX_Position3f32(screen_x + width * glparamstate.pixel_zoom_x, y0, screen_z);
     GX_TexCoord2u8(1, 0);
     GX_End();
 }

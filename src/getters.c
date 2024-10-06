@@ -296,6 +296,12 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_RENDER_MODE:
         *params = glparamstate.render_mode;
         return;
+    case GL_ZOOM_X:
+        *params = glparamstate.pixel_zoom_x;
+        break;
+    case GL_ZOOM_Y:
+        *params = glparamstate.pixel_zoom_y;
+        break;
     default:
         return;
     };

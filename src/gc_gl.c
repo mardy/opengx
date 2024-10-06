@@ -283,6 +283,8 @@ void ogx_initialize()
     glparamstate.raster_pos[2] = 0.0f;
     glparamstate.raster_pos[3] = 1.0f;
     glparamstate.raster_pos_valid = true;
+    glparamstate.pixel_zoom_x = 1.0f;
+    glparamstate.pixel_zoom_y = 1.0f;
 
     glparamstate.depth_near = 0.0f;
     glparamstate.depth_far = 1.0f;

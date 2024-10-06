@@ -99,6 +99,8 @@ typedef struct glparams_
     float texture_object_plane_s[4];
     float texture_object_plane_t[4];
     float raster_pos[4];
+    float pixel_zoom_x;
+    float pixel_zoom_y;
     float depth_near;
     float depth_far;
     int cur_modv_mat, cur_proj_mat;

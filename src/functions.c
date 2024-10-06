@@ -241,7 +241,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glPixelStorei),
     //PROC(glPixelTransferf),
     //PROC(glPixelTransferi),
-    //PROC(glPixelZoom),
+    PROC(glPixelZoom),
     PROC(glPointSize),
     PROC(glPolygonMode),
     PROC(glPolygonOffset),
