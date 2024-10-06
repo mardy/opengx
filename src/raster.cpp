@@ -197,6 +197,7 @@ void glGetPixelMapusv(GLenum map, GLushort *values)
  * enabled, as suitable for the raster functions.
  * Since the color channel and the TEV setup differs between the various
  * functions, it's left up to the caller.
+ * If height is negative, the image will be flipped.
  */
 static void draw_raster_texture(GXTexObj *texture, int width, int height,
                                 int screen_x, int screen_y, int screen_z)
@@ -223,16 +224,24 @@ static void draw_raster_texture(GXTexObj *texture, int width, int height,
                     GX_LO_CLEAR);
     glparamstate.dirty.bits.dirty_blend = 1;
 
-    /* The first row we read from the bitmap is the bottom row, so let's take
-     * this into account and flip the image vertically */
+    int y0, y1;
+    if (height < 0) {
+        y0 = screen_y + height;
+        y1 = screen_y;
+    } else {
+        /* The first row we read from the bitmap is the bottom row, so let's take
+         * this into account and flip the image vertically */
+        y0 = screen_y;
+        y1 = screen_y - height;
+    }
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
-    GX_Position3f32(screen_x, screen_y, screen_z);
+    GX_Position3f32(screen_x, y0, screen_z);
     GX_TexCoord2u8(0, 0);
-    GX_Position3f32(screen_x, screen_y - height, screen_z);
+    GX_Position3f32(screen_x, y1, screen_z);
     GX_TexCoord2u8(0, 1);
-    GX_Position3f32(screen_x + width, screen_y - height, screen_z);
+    GX_Position3f32(screen_x + width, y1, screen_z);
     GX_TexCoord2u8(1, 1);
-    GX_Position3f32(screen_x + width, screen_y, screen_z);
+    GX_Position3f32(screen_x + width, y0, screen_z);
     GX_TexCoord2u8(1, 0);
     GX_End();
 }
@@ -336,6 +345,51 @@ void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type,
     GX_SetNumChans(0);
     GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
     draw_raster_texture(&texture, width, height, pos_x, pos_y, pos_z);
+
+    /* We need to wait for the drawing to be complete before freeing the
+     * texture memory */
+    GX_DrawDone();
+
+    free(texels);
+}
+
+void glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type)
+{
+    if (type != GL_COLOR) {
+        warning("glCopyPixels() only implemented for color copies");
+        return;
+    }
+
+    if (!glparamstate.raster_pos_valid) return;
+
+    float pos_x = int(glparamstate.raster_pos[0]);
+    float pos_y = int(glparamstate.viewport[3] -
+                      (glparamstate.raster_pos[1]));
+    float pos_z = -glparamstate.raster_pos[2];
+
+    /* Since this operation doesn't take the alpha into account, let's use
+     * RGB565. If it turns out that some applications need more precision,
+     * we'll use GX_TF_RGBA8 */
+    uint8_t gx_format = GX_TF_RGB565;
+    u32 size = GX_GetTexBufferSize(width, height, gx_format, 0, GX_FALSE);
+    void *texels = memalign(32, size);
+    GX_SetCopyFilter(GX_FALSE, NULL, GX_FALSE, NULL);
+    GX_SetTexCopySrc(x, glparamstate.viewport[3] - y - height, width, height);
+    GX_SetTexCopyDst(width, height, gx_format, GX_FALSE);
+    GX_CopyTex(texels, GX_FALSE);
+
+    GXTexObj texture;
+    GX_InitTexObj(&texture, texels,
+                  width, height, gx_format, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjLOD(&texture, GX_NEAR, GX_NEAR,
+                     0.0f, 0.0f, 0, 0, 0, GX_ANISO_1);
+    GX_InvalidateTexAll();
+    GX_PixModeSync();
+    DCInvalidateRange(texels, size);
+
+    GX_SetNumChans(0);
+    GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+    draw_raster_texture(&texture, width, -height, pos_x, pos_y, pos_z);
 
     /* We need to wait for the drawing to be complete before freeing the
      * texture memory */

@@ -95,7 +95,7 @@ static const ProcMap s_proc_map[] = {
     PROC(glColorMask),
     PROC(glColorMaterial),
     PROC(glColorPointer),
-    //PROC(glCopyPixels),
+    PROC(glCopyPixels),
     //PROC(glCopyTexImage1D),
     //PROC(glCopyTexImage2D),
     //PROC(glCopyTexSubImage1D),
