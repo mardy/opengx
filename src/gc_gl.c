@@ -225,6 +225,7 @@ void ogx_initialize()
     glparamstate.glcullmode = GL_BACK;
     glparamstate.render_mode = GL_RENDER;
     glparamstate.cullenabled = 0;
+    glparamstate.polygon_mode = GL_FILL;
     glparamstate.color_update = true;
     glparamstate.alpha_func = GX_ALWAYS;
     glparamstate.alpha_ref = 0;
@@ -1435,6 +1436,16 @@ void glLineWidth(GLfloat width)
     GX_SetLineWidth((unsigned int)(width * 16), GX_TO_ZERO);
 }
 
+void glPolygonMode(GLenum face, GLenum mode)
+{
+    if (face != GL_FRONT_AND_BACK) {
+        warning("glPolygonMode: face selection is unsupported");
+        return;
+    }
+
+    glparamstate.polygon_mode = mode;
+}
+
 void glPolygonOffset(GLfloat factor, GLfloat units)
 {
     glparamstate.polygon_offset_factor = factor;
@@ -1854,6 +1865,17 @@ static LightMasks prepare_lighting()
 DrawMode _ogx_draw_mode(GLenum mode)
 {
     DrawMode dm = { 0xff, false };
+
+    if (glparamstate.polygon_mode != GL_FILL) {
+        if (glparamstate.polygon_mode == GL_POINT) {
+            dm.mode = GX_POINTS;
+        } else { // GL LINE
+            dm.mode = GX_LINESTRIP;
+            dm.loop = true;
+        }
+        return dm;
+    }
+
     switch (mode) {
     case GL_POINTS:
         dm.mode = GX_POINTS;
@@ -2589,7 +2611,6 @@ void glPushAttrib(GLbitfield mask) {}
 void glPopAttrib(void) {}
 void glPushClientAttrib(GLbitfield mask) {}
 void glPopClientAttrib(void) {}
-void glPolygonMode(GLenum face, GLenum mode) {}
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {}
 
 /*
