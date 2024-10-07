@@ -125,6 +125,7 @@ typedef struct glparams_
     GLenum glcullmode;
     GLenum render_mode;
     GLenum active_buffer; /* no separate buffers for reading and writing */
+    GLenum polygon_mode;
     int glcurtex;
     int draw_count;
     GXColor clear_color;
