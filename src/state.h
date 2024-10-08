@@ -182,6 +182,7 @@ typedef struct glparams_
         GLenum prim_type;
         unsigned in_gl_begin : 1;
         unsigned has_color : 1;
+        unsigned has_normal : 1;
     } imm_mode;
 
     union dirty_union

@@ -64,6 +64,7 @@ typedef enum {
     COMMAND_SCALE,
     COMMAND_FRONT_FACE,
     COMMAND_COLOR,
+    COMMAND_NORMAL,
 } CommandType;
 
 #define HANDLE_CALL_LIST(operation, ...) \

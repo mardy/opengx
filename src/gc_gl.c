@@ -908,6 +908,7 @@ void glBegin(GLenum mode)
     glparamstate.imm_mode.prim_type = mode;
     glparamstate.imm_mode.in_gl_begin = 1;
     glparamstate.imm_mode.has_color = 0;
+    glparamstate.imm_mode.has_normal = 0;
     if (!glparamstate.imm_mode.current_vertices) {
         int count = 64;
         warning("First malloc %d", errno);
@@ -944,7 +945,7 @@ void glEnd()
     _ogx_array_reader_set_num_elements(&glparamstate.vertex_array, 3);
     glparamstate.cs.texcoord_enabled = 1;
     glparamstate.cs.color_enabled = glparamstate.imm_mode.has_color;
-    glparamstate.cs.normal_enabled = 1;
+    glparamstate.cs.normal_enabled = glparamstate.imm_mode.has_normal;
     glparamstate.cs.vertex_enabled = 1;
     glDrawArrays(glparamstate.imm_mode.prim_type, 0, glparamstate.imm_mode.current_numverts);
     glparamstate.cs = cs_backup;
