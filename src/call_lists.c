@@ -107,6 +107,8 @@ typedef struct
 
         float color[4];
 
+        float normal[3];
+
         float matrix[16];
     } c;
 } Command;
@@ -273,8 +275,10 @@ static void run_command(Command *cmd)
     case COMMAND_COLOR:
         glColor4fv(cmd->c.color);
         break;
+    case COMMAND_NORMAL:
+        glNormal3fv(cmd->c.normal);
+        break;
     }
-
 }
 
 static void open_gxlist(Command *command)
@@ -468,6 +472,9 @@ bool _ogx_call_list_append(CommandType op, ...)
         break;
     case COMMAND_COLOR:
         floatcpy(command->c.color, va_arg(ap, GLfloat *), 4);
+        break;
+    case COMMAND_NORMAL:
+        floatcpy(command->c.normal, va_arg(ap, GLfloat *), 3);
         break;
     }
     va_end(ap);
