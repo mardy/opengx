@@ -47,6 +47,7 @@ typedef enum {
                      of the call list */
     COMMAND_GXLIST, /* Execute a GX call list */
     COMMAND_DRAW_ARRAYS,
+    COMMAND_DRAW_ELEMENTS,
     COMMAND_CALL_LIST,
     COMMAND_ENABLE,
     COMMAND_DISABLE,

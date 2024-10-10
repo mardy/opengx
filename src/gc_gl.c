@@ -72,12 +72,6 @@ typedef struct
     uint8_t specular_mask;
 } LightMasks;
 
-typedef struct
-{
-    uint8_t mode;
-    bool loop;
-} DrawMode;
-
 char _ogx_log_level = 0;
 static OgxEfbBuffer *s_efb_scene_buffer = NULL;
 static GXTexObj s_zbuffer_texture;
@@ -1867,7 +1861,7 @@ static LightMasks prepare_lighting()
     return masks;
 }
 
-static DrawMode draw_mode(GLenum mode)
+DrawMode _ogx_draw_mode(GLenum mode)
 {
     DrawMode dm = { 0xff, false };
 
@@ -2408,30 +2402,27 @@ void glArrayElement(GLint i)
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
-    DrawMode gxmode = draw_mode(mode);
+    DrawMode gxmode = _ogx_draw_mode(mode);
     if (gxmode.mode == 0xff)
         return;
 
+    HANDLE_CALL_LIST(DRAW_ARRAYS, mode, first, count);
+
     bool should_draw = true;
     int texen = glparamstate.cs.texcoord_enabled;
-    if (glparamstate.current_call_list.index >= 0 &&
-        glparamstate.current_call_list.execution_depth == 0) {
-        _ogx_call_list_append(COMMAND_GXLIST);
-    } else {
-        if (glparamstate.stencil.enabled) {
-            OgxDrawData draw_data = { gxmode, first, count };
-            _ogx_stencil_draw(flat_draw_geometry, &draw_data);
-        }
-
-        _ogx_efb_set_content_type(OGX_EFB_SCENE);
-        should_draw = _ogx_setup_render_stages();
-        _ogx_apply_state();
-
-        /* When not building a display list, we can optimize the drawing by
-         * avoiding passing texture coordinates if texturing is not enabled.
-         */
-        texen = texen && glparamstate.texture_enabled;
+    if (glparamstate.stencil.enabled) {
+        OgxDrawData draw_data = { gxmode, first, count };
+        _ogx_stencil_draw(flat_draw_geometry, &draw_data);
     }
+
+    _ogx_efb_set_content_type(OGX_EFB_SCENE);
+    should_draw = _ogx_setup_render_stages();
+    _ogx_apply_state();
+
+    /* When not building a display list, we can optimize the drawing by
+     * avoiding passing texture coordinates if texturing is not enabled.
+     */
+    texen = texen && glparamstate.texture_enabled;
 
     if (should_draw) {
         int color_provide = 0;
@@ -2451,29 +2442,26 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
-    DrawMode gxmode = draw_mode(mode);
+    DrawMode gxmode = _ogx_draw_mode(mode);
     if (gxmode.mode == 0xff)
         return;
 
+    HANDLE_CALL_LIST(DRAW_ELEMENTS, mode, count, type, indices);
+
     bool should_draw = true;
     int texen = glparamstate.cs.texcoord_enabled;
-    if (glparamstate.current_call_list.index >= 0 &&
-        glparamstate.current_call_list.execution_depth == 0) {
-        _ogx_call_list_append(COMMAND_GXLIST);
-    } else {
-        if (glparamstate.stencil.enabled) {
-            OgxDrawElementsData draw_data = { gxmode, count, type, indices };
-            _ogx_stencil_draw(flat_draw_elements, &draw_data);
-        }
-
-        _ogx_efb_set_content_type(OGX_EFB_SCENE);
-        should_draw = _ogx_setup_render_stages();
-        _ogx_apply_state();
-        /* When not building a display list, we can optimize the drawing by
-         * avoiding passing texture coordinates if texturing is not enabled.
-         */
-        texen = texen && glparamstate.texture_enabled;
+    if (glparamstate.stencil.enabled) {
+        OgxDrawElementsData draw_data = { gxmode, count, type, indices };
+        _ogx_stencil_draw(flat_draw_elements, &draw_data);
     }
+
+    _ogx_efb_set_content_type(OGX_EFB_SCENE);
+    should_draw = _ogx_setup_render_stages();
+    _ogx_apply_state();
+    /* When not building a display list, we can optimize the drawing by
+     * avoiding passing texture coordinates if texturing is not enabled.
+     */
+    texen = texen && glparamstate.texture_enabled;
 
     if (should_draw) {
         int color_provide = 0;
