@@ -133,9 +133,10 @@ typedef struct
 } CallList;
 
 static CallList call_lists[MAX_CALL_LISTS];
-static GXColor s_current_color ATTRIBUTE_ALIGN(32);
-typedef float NormalType[3];
-static NormalType s_current_normals[2] ATTRIBUTE_ALIGN(32);
+static GXColor s_current_color;
+static float s_current_normal[3];
+static bool s_last_draw_used_indexed_data = false;
+static uint16_t s_last_draw_sync_token = 0;
 
 #define BUFFER_IS_VALID(buffer) (((uint32_t)buffer) > 1)
 #define LIST_IS_USED(index) BUFFER_IS_VALID(call_lists[index].head)
@@ -226,25 +227,43 @@ static void run_gx_list(struct GXDisplayList *gxlist)
 
 static void execute_draw_geometry_list(struct DrawGeometry *dg)
 {
-    static int counter = 0;
-    float *normals_array;
+    static uint16_t counter = 0;
     u8 vtxindex = GX_VTXFMT0;
-    if (counter++ % 2) {
-        normals_array = s_current_normals[1];
-    } else {
-        normals_array = s_current_normals[0];
+    GXColor current_color;
+
+    bool uses_indexed_data = !dg->cs.normal_enabled || !dg->cs.color_enabled;
+    if (uses_indexed_data && s_last_draw_used_indexed_data) {
+        bool data_changed = false;
+        /* If the indexed data has changed, we need to wait until the previous
+         * list has completed its execution, because changing the data under
+         * its feet will cause rendering issues. */
+        if (!dg->cs.color_enabled) {
+            current_color = gxcol_new_fv(glparamstate.imm_mode.current_color);
+            if (!gxcol_equal(current_color, s_current_color)) data_changed = true;
+        }
+
+        if (!dg->cs.normal_enabled) {
+            if (memcmp(s_current_normal, glparamstate.imm_mode.current_normal,
+                       sizeof(s_current_normal)) != 0)
+                data_changed = true;
+        }
+
+        if (data_changed) {
+            // Wait
+            while (GX_GetDrawSync() < s_last_draw_sync_token);
+        }
     }
+
     GX_ClearVtxDesc();
     GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
     if (dg->cs.normal_enabled) {
         GX_SetVtxDesc(GX_VA_NRM, GX_DIRECT);
     } else {
         GX_SetVtxDesc(GX_VA_NRM, GX_INDEX8);
-        fprintf(stderr, "normals: %p\n", normals_array);
-        GX_SetArray(GX_VA_NRM, normals_array, 12);
-        floatcpy(normals_array, glparamstate.imm_mode.current_normal, 3);
+        GX_SetArray(GX_VA_NRM, s_current_normal, 12);
+        floatcpy(s_current_normal, glparamstate.imm_mode.current_normal, 3);
         /* Not needed on Dolphin, but it is on a Wii */
-        DCFlushRange(normals_array, 12);
+        DCStoreRange(s_current_normal, 12);
     }
     if (dg->cs.color_enabled) {
         GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
@@ -252,11 +271,12 @@ static void execute_draw_geometry_list(struct DrawGeometry *dg)
     } else {
         GX_SetVtxDesc(GX_VA_CLR0, GX_INDEX8);
         GX_SetVtxDesc(GX_VA_CLR1, GX_INDEX8);
-        s_current_color = gxcol_new_fv(glparamstate.imm_mode.current_color);
+        s_current_color = current_color;
         GX_SetArray(GX_VA_CLR0, &s_current_color, 4);
         GX_SetArray(GX_VA_CLR1, &s_current_color, 4);
-        DCFlushRange(&s_current_color, 4);
+        DCStoreRange(&s_current_color, 4);
     }
+
     /* It makes no sense to use a fixed texture coordinates for all vertices,
      * so we won't add them unless they are enabled. */
     if (dg->cs.texcoord_enabled) {
@@ -271,9 +291,13 @@ static void execute_draw_geometry_list(struct DrawGeometry *dg)
     GX_InvVtxCache();
 
     GX_CallDispList(dg->gxlist, dg->list_size);
-    /* Without this, the last few triangles risk not getting drawn (both on
-     * Dolphin and on the HW) */
-    //GX_DrawDone();
+
+    if (uses_indexed_data) {
+        s_last_draw_sync_token = send_draw_sync_token();
+        s_last_draw_used_indexed_data = true;
+    } else {
+        s_last_draw_used_indexed_data = false;
+    }
 }
 
 static void flat_draw_geometry(void *cb_data)
@@ -290,7 +314,7 @@ static void run_draw_geometry(struct DrawGeometry *dg)
      * GX_Begin() code. */
     DrawMode gxmode = _ogx_draw_mode(dg->mode);
     u8 *fifo_ptr = dg->gxlist;
-    *fifo_ptr = gxmode.mode | (GX_VTXFMT1 & 0x7);
+    *fifo_ptr = gxmode.mode | (GX_VTXFMT0 & 0x7);
     // TODO: check if DCStoreRange() is needed
 
     _ogx_efb_set_content_type(OGX_EFB_SCENE);
@@ -305,11 +329,9 @@ static void run_draw_geometry(struct DrawGeometry *dg)
 
     glparamstate.draw_count++;
 
-    /*
     if (glparamstate.stencil.enabled) {
         _ogx_stencil_draw(flat_draw_geometry, dg);
     }
-    */
 }
 
 static void run_command(Command *cmd)

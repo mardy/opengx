@@ -73,6 +73,7 @@ typedef struct
 } LightMasks;
 
 char _ogx_log_level = 0;
+uint16_t _ogx_draw_sync_token = 0;
 static OgxEfbBuffer *s_efb_scene_buffer = NULL;
 static GXTexObj s_zbuffer_texture;
 static uint8_t s_zbuffer_texels[2 * 32] ATTRIBUTE_ALIGN(32);
