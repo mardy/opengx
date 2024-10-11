@@ -469,7 +469,9 @@ static bool draw_op(uint16_t op,
                      GX_TRUE, GX_TEVPREV);
     GX_SetTevAlphaOp(stage, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1,
                      GX_TRUE, GX_TEVPREV);
-    GX_SetNumChans(0);
+    GX_SetNumChans(1);
+    GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_REG, 0, GX_DF_NONE, GX_AF_NONE);
+
 
     if (check_stencil) {
         bool must_draw =
