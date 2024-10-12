@@ -111,7 +111,7 @@ void _ogx_efb_buffer_prepare(OgxEfbBuffer **buffer, uint8_t format)
 
     u16 width = glparamstate.viewport[2];
     u16 height = glparamstate.viewport[3];
-    u32 size = GX_GetTexBufferSize(width, height, GX_TF_RGBA8, 0, GX_FALSE);
+    u32 size = GX_GetTexBufferSize(width, height, format, 0, GX_FALSE);
     OgxEfbBuffer *b = memalign(32, size + sizeof(OgxEfbBuffer));
     void *texels = &(b->texels[0]);
     DCInvalidateRange(texels, size);
