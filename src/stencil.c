@@ -292,7 +292,7 @@ static bool setup_tev_full(int *stages, int *tex_coords,
     }
 
     debug(OGX_LOG_STENCIL, "%d TEV stages, %d tex_coords, %d tex_maps",
-          *stages, *tex_coords, tex_maps);
+          *stages, *tex_coords, *tex_maps);
     u8 logical_op;
     u8 ref_value = GX_CA_KONST;
     bool invert_operands = false;
