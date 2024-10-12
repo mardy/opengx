@@ -284,6 +284,20 @@ static void run_draw_geometry(struct DrawGeometry *dg)
 {
     struct client_state cs;
 
+    /* Update the drawing mode on the list. This required peeping into
+     * GX_Begin() code. */
+    DrawMode gxmode = _ogx_draw_mode(dg->mode);
+    u8 *fifo_ptr = dg->gxlist;
+    u8 mode_opcode = gxmode.mode | (GX_VTXFMT0 & 0x7);
+    if (*fifo_ptr != mode_opcode) {
+        /* Before altering the list, we need to make sure that it's not in use
+         * by the GP.
+         * TODO: find a better criterium, to minimize waits */
+        GX_DrawDone();
+        *fifo_ptr = mode_opcode;
+        DCStoreRange(fifo_ptr, 32); // min size is 32
+    }
+
     _ogx_efb_set_content_type(OGX_EFB_SCENE);
 
     cs = glparamstate.cs;
@@ -411,6 +425,8 @@ static void queue_draw_geometry(struct DrawGeometry *dg,
     dg->count = count + gxmode.loop;
 
     GX_BeginDispList(dg->gxlist, MAX_GXLIST_SIZE);
+
+    /* Note that the drawing mode set here will be overwritten when executing the list */
 
     GX_Begin(gxmode.mode, GX_VTXFMT0, dg->count);
     for (int i = 0; i < dg->count; i++) {
