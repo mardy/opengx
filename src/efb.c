@@ -151,5 +151,6 @@ void _ogx_efb_buffer_save(OgxEfbBuffer *buffer, OgxEfbFlags flags)
     u16 width, height;
     GX_GetTexObjAll(&buffer->texobj, &texels, &width, &height, &format,
                     &unused, &unused, &unused);
+    texels = MEM_PHYSICAL_TO_K0(texels);
     _ogx_efb_save_to_buffer(format, width, height, texels, flags);
 }
