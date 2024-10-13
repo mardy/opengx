@@ -199,32 +199,6 @@ static Command *new_command(CommandBuffer **head)
     }
 }
 
-static void flat_draw_list(void *cb_data)
-{
-    struct GXDisplayList *gxlist = cb_data;
-
-    GX_CallDispList(gxlist->list, gxlist->size);
-}
-
-static void run_gx_list(struct GXDisplayList *gxlist)
-{
-    struct client_state cs;
-
-    _ogx_efb_set_content_type(OGX_EFB_SCENE);
-
-    cs = glparamstate.cs;
-    glparamstate.cs = gxlist->cs;
-    _ogx_apply_state();
-    _ogx_setup_render_stages();
-    glparamstate.cs = cs;
-    GX_CallDispList(gxlist->list, gxlist->size);
-    glparamstate.draw_count++;
-
-    if (glparamstate.stencil.enabled) {
-        _ogx_stencil_draw(flat_draw_list, gxlist);
-    }
-}
-
 static void execute_draw_geometry_list(struct DrawGeometry *dg)
 {
     static uint16_t counter = 0;
@@ -330,9 +304,6 @@ static void run_draw_geometry(struct DrawGeometry *dg)
 static void run_command(Command *cmd)
 {
     switch (cmd->type) {
-    case COMMAND_GXLIST:
-        run_gx_list(&cmd->c.gxlist);
-        break;
     case COMMAND_DRAW_ARRAYS:
         run_draw_geometry(&cmd->c.draw_geometry);
         break;
@@ -399,49 +370,6 @@ static void run_command(Command *cmd)
         glNormal3fv(cmd->c.normal);
         break;
     }
-}
-
-static void open_gxlist(Command *command)
-{
-    command->type = COMMAND_GXLIST;
-    command->c.gxlist.size = 0;
-    command->c.gxlist.list = memalign(32, MAX_GXLIST_SIZE);
-    DCInvalidateRange(command->c.gxlist.list, MAX_GXLIST_SIZE);
-    /* Save the client state */
-    command->c.gxlist.cs = glparamstate.cs;
-    GX_BeginDispList(command->c.gxlist.list, MAX_GXLIST_SIZE);
-}
-
-static void close_gxlist(Command *command)
-{
-    u32 size = GX_EndDispList();
-    /* Free any excess memory */
-    command->c.gxlist.size = size;
-    void *new_ptr = realloc(command->c.gxlist.list, size);
-    assert(new_ptr == command->c.gxlist.list);
-
-    if (glparamstate.current_call_list.must_execute) {
-        GX_CallDispList(command->c.gxlist.list, command->c.gxlist.size);
-    }
-}
-
-static void close_list(int index)
-{
-    CallList *list = &call_lists[index];
-    if (!LIST_IS_USED(index)) return;
-
-    CommandBuffer *buffer = list->head;
-    int i = last_command(&buffer);
-    if (i < 0) {
-        /* The list is empty */
-        return;
-    }
-
-    Command *command = &buffer->commands[i];
-    if (command->type == COMMAND_GXLIST) {
-        close_gxlist(command);
-    }
-
 }
 
 typedef int (*IndexCallback)(int i, void *index_data);
@@ -551,14 +479,10 @@ static void destroy_buffer(CommandBuffer *buffer)
         if (command->type == COMMAND_NONE) break;
 
         /* Free the memory for those commands who allocated it */
-        void *ptr = NULL;
-        if (command->type == COMMAND_GXLIST) {
-            ptr = command->c.gxlist.list;
-        } else if (command->type == COMMAND_DRAW_ELEMENTS ||
-                   command->type == COMMAND_DRAW_ARRAYS) {
-            ptr = command->c.draw_geometry.gxlist;
+        if (command->type == COMMAND_DRAW_ELEMENTS ||
+            command->type == COMMAND_DRAW_ARRAYS) {
+            free(command->c.draw_geometry.gxlist);
         }
-        if (ptr) free(ptr);
     }
     free(buffer);
 }
@@ -591,27 +515,7 @@ bool _ogx_call_list_append(CommandType op, ...)
 
     debug(OGX_LOG_CALL_LISTS, "Adding command %d to list %d",
           op, glparamstate.current_call_list.index);
-    int index = last_command(&buffer);
-    if (index >= 0) {
-        command = &buffer->commands[index];
-        if (command->type == COMMAND_GXLIST) {
-            if (op == COMMAND_GXLIST) {
-                /* If we are already inside a GX display list, nothing to do here */
-                return true;
-            } else {
-                /* End the GX display list operation if one was active */
-                close_gxlist(command);
-            }
-        }
-    }
 
-    if (op == COMMAND_GXLIST) {
-        command = new_command(&list->head);
-        open_gxlist(command);
-        return true;
-    }
-
-    /* In all other cases, we are adding the command to the list */
     command = new_command(&list->head);
     command->type = op;
     va_start(ap, op);
@@ -818,7 +722,6 @@ void glEndList(void)
         return;
     }
 
-    close_list(glparamstate.current_call_list.index);
     GLuint list = glparamstate.current_call_list.index + CALL_LIST_START_ID;
     glparamstate.current_call_list.index = -1;
     glparamstate.current_call_list.execution_depth = 0;

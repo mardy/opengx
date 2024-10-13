@@ -45,7 +45,6 @@ extern "C" {
 typedef enum {
     COMMAND_NONE, /* The command entry is unused, it means we reached the end
                      of the call list */
-    COMMAND_GXLIST, /* Execute a GX call list */
     COMMAND_DRAW_ARRAYS,
     COMMAND_DRAW_ELEMENTS,
     COMMAND_CALL_LIST,
