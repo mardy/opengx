@@ -70,7 +70,7 @@ static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
 }
 
 struct Texel {
-    virtual void setColor(GXColor color) = 0;
+    virtual void set_color(GXColor color) = 0;
     virtual void store (void *texture, int x, int y, int pitch) = 0;
     virtual int pitch_for_width(int width) = 0;
 };
@@ -81,11 +81,12 @@ struct TexelRGBA8: public Texel {
     static constexpr bool has_luminance = false;
 
     TexelRGBA8() = default;
-    TexelRGBA8(uint8_t r, uint8_t g, uint8_t b, uint8_t a):
-        r(r), g(g), b(b), a(a) {}
+    void set_color(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha) {
+        r = red; g = green; b =blue; a = alpha;
+    }
 
-    void setColor(GXColor c) override {
-        r = c.r; g = c.g; b = c.b; a = c.a;
+    void set_color(GXColor c) override {
+        set_color(c.r, c.g, c.b, c.a);
     }
 
     void store(void *texture, int x, int y, int pitch) override {
@@ -114,7 +115,8 @@ struct TexelRGBA8: public Texel {
 
 struct Texel16: public Texel {
     Texel16() = default;
-    Texel16(uint16_t value): word(value) {}
+    void setWord(uint16_t value) { word = value; }
+
     void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 4;
         int block_y = y / 4;
@@ -143,12 +145,13 @@ struct TexelIA8: public Texel16 {
     static constexpr bool has_luminance = true;
 
     TexelIA8() = default;
-    TexelIA8(uint8_t intensity, uint8_t alpha):
-        Texel16((alpha << 8) | intensity) {}
+    void set_luminance_alpha(uint8_t luminance, uint8_t alpha) {
+        setWord((alpha << 8) | luminance);
+    }
 
-    void setColor(GXColor c) override {
+    void set_color(GXColor c) override {
         int luminance = luminance_from_rgb(c.r, c.g, c.b);
-        word = (c.a << 8) | luminance;
+        set_luminance_alpha(luminance, c.a);
     }
 };
 
@@ -157,22 +160,18 @@ struct TexelRGB565: public Texel16 {
     static constexpr bool has_rgb = true;
 
     TexelRGB565() = default;
-    TexelRGB565(uint8_t r, uint8_t g, uint8_t b):
-        Texel16(((r & 0xf8) << 8) |
+    void set_color(uint8_t r, uint8_t g, uint8_t b) {
+        setWord(((r & 0xf8) << 8) |
                 ((g & 0xfc) << 3) |
-                ((b & 0xf8) >> 3)) {}
-
-    void setColor(GXColor c) override {
-        word = ((c.r & 0xf8) << 8) |
-            ((c.g & 0xfc) << 3) |
-            ((c.b & 0xf8) >> 3);
+                ((b & 0xf8) >> 3));
     }
+
+    void set_color(GXColor c) override { set_color(c.r, c.g, c.b); }
 };
 
 struct Texel8: public Texel {
     Texel8() = default;
-    Texel8(uint8_t value):
-        value(value) {}
+    void setByte(uint8_t b) { value = b; }
 
     void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 8;
@@ -198,9 +197,10 @@ struct TexelI8: public Texel8 {
     static constexpr bool has_luminance = true;
 
     using Texel8::Texel8;
-    void setColor(GXColor c) override {
-        value = luminance_from_rgb(c.r, c.g, c.b);
+    void set_color(GXColor c) override {
+        setByte(luminance_from_rgb(c.r, c.g, c.b));
     }
+    void set_luminance(uint8_t l) { setByte(l); }
 };
 
 struct TexelA8: public Texel8 {
@@ -209,15 +209,13 @@ struct TexelA8: public Texel8 {
     static constexpr bool has_luminance = false;
 
     using Texel8::Texel8;
-    void setColor(GXColor c) override {
-        value = c.a;
-    }
+    void set_color(GXColor c) override { setByte(c.a); }
+    void set_alpha(uint8_t a) { setByte(a); }
 };
 
 struct TexelI4: public Texel {
     TexelI4() = default;
-    TexelI4(uint8_t value):
-        value(value >> 4) {}
+    void set_luminance(uint8_t luminance) { value = luminance >> 4; }
 
     void store(void *texture, int x, int y, int pitch) override {
         int block_x = x / 8;
@@ -245,9 +243,7 @@ struct TexelI4: public Texel {
 
     int pitch_for_width(int width) override { return compute_pitch(width); }
 
-    void setColor(GXColor c) override {
-        value = c.r;
-    }
+    void set_color(GXColor c) override { set_luminance(c.r); }
 
     uint8_t value;
 };
@@ -283,19 +279,19 @@ struct DataReader {
     template <typename P>
     static inline const T *read(const T *data, P &pixel) {
         if constexpr (NUM_ELEMS == 4 && P::has_rgb && P::has_alpha) {
-            pixel = P(component(data[0]),
-                      component(data[1]),
-                      component(data[2]),
-                      component(data[3]));
+            pixel.set_color(component(data[0]),
+                            component(data[1]),
+                            component(data[2]),
+                            component(data[3]));
         } else if constexpr (NUM_ELEMS >= 3 && P::has_rgb && !P::has_alpha) {
-            pixel = P(component(data[0]),
-                      component(data[1]),
-                      component(data[2]));
+            pixel.set_color(component(data[0]),
+                            component(data[1]),
+                            component(data[2]));
         } else if constexpr (NUM_ELEMS == 3 && P::has_rgb && P::has_alpha) {
-            pixel = P(component(data[0]),
-                      component(data[1]),
-                      component(data[2]),
-                      1.0f);
+            pixel.set_color(component(data[0]),
+                            component(data[1]),
+                            component(data[2]),
+                            1.0f);
         } else {
             /* TODO (maybe) support converting from intensity to RGB */
             uint8_t luminance, alpha;
@@ -328,11 +324,11 @@ struct DataReader {
             }
 
             if constexpr (P::has_luminance && P::has_alpha) {
-                pixel = P(luminance, alpha);
+                pixel.set_luminance_alpha(luminance, alpha);
             } else if constexpr (P::has_luminance) {
-                pixel = P(luminance);
+                pixel.set_luminance(luminance);
             } else { /* Only alpha */
-                pixel = P(alpha);
+                pixel.set_alpha(alpha);
             }
         }
 
@@ -809,7 +805,7 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         }
         for (int rx = 0; rx < width; rx++) {
             GXColor c = reader->read();
-            texel->setColor(c);
+            texel->set_color(c);
             texel->store(dst, x + rx, y + ry, dstpitch);
         }
     }
