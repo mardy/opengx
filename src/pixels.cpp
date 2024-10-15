@@ -73,6 +73,22 @@ struct Texel {
     virtual void set_color(GXColor color) = 0;
     virtual void store (void *texture, int x, int y, int pitch) = 0;
     virtual int pitch_for_width(int width) = 0;
+
+    void set_area(void *data, int x, int y, int width, int pitch) {
+        m_data = data;
+        m_start_x = m_x = x;
+        m_start_y = m_y = y;
+        m_width = width;
+        m_pitch = pitch;
+    }
+
+    void *m_data;
+    int m_x;
+    int m_y;
+    int m_start_x;
+    int m_start_y;
+    int m_width;
+    int m_pitch;
 };
 
 struct TexelRGBA8: public Texel {
@@ -98,6 +114,22 @@ struct TexelRGBA8: public Texel {
         d[1] = r;
         d[32] = g;
         d[33] = b;
+    }
+
+    void write_to_texture() {
+        int block_x = m_x / 4;
+        int block_y = m_y / 4;
+        uint8_t *d = static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 4 + block_x * 64 + (m_y % 4) * 8 + (m_x % 4) * 2;
+        d[0] = a;
+        d[1] = r;
+        d[32] = g;
+        d[33] = b;
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     static inline int compute_pitch(int width) {
