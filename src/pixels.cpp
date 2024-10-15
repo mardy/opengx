@@ -141,13 +141,16 @@ struct Texel16: public Texel {
     Texel16() = default;
     void setWord(uint16_t value) { word = value; }
 
-    void store() override {
+    uint16_t *current_address() {
         int block_x = m_x / 4;
         int block_y = m_y / 4;
-        uint8_t *d = static_cast<uint8_t*>(m_data) +
-            block_y * m_pitch * 4 + block_x * 32 + (m_y % 4) * 8 + (m_x % 4) * 2;
-        d[0] = byte0();
-        d[1] = byte1();
+        return reinterpret_cast<uint16_t*>(static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 4 + block_x * 32 + (m_y % 4) * 8 + (m_x % 4) * 2);
+    }
+
+    void store() override {
+        uint16_t *d = current_address();
+        d[0] = word;
         m_x++;
         if (m_x == m_start_x + m_width) {
             m_y++;
@@ -161,9 +164,6 @@ struct Texel16: public Texel {
     }
 
     int pitch_for_width(int width) override { return compute_pitch(width); }
-
-    uint8_t byte0() const { return word >> 8; }
-    uint8_t byte1() const { return word & 0xff; }
 
     uint16_t word;
 };
