@@ -251,27 +251,48 @@ struct TexelI4: public Texel {
     TexelI4() = default;
     void set_luminance(uint8_t luminance) { value = luminance >> 4; }
 
-    void store() override {
+    uint8_t *current_address() const {
         int block_x = m_x / 8;
         int block_y = m_y / 8;
-        uint8_t *d = static_cast<uint8_t*>(m_data) +
+        return static_cast<uint8_t*>(m_data) +
             block_y * m_pitch * 8 + block_x * 32 + (m_y % 8) * 4 + (m_x % 8) / 2;
-        uint8_t texel_pair = d[0];
-        /* This is extremely inefficient! TODO: rework the Texel classes so
-         * that they operate as a stream writer, similarly to the reader
-         * classes. */
-        if (m_x % 2 == 1) {
-            texel_pair &= 0xf0;
-            texel_pair |= (value & 0xf);
-        } else {
-            texel_pair &= 0x0f;
-            texel_pair |= (value << 4);
+    }
+
+    void read_first_odd_pixel_in_line() {
+        if (m_start_x % 2 != 0) {
+            /* We start drawing at the second half of a byte, so read the first
+             * half which we need to preserve */
+            uint8_t *d = current_address();
+            last_texel = d[0] & 0xf0;
         }
-        d[0] = texel_pair;
+    }
+
+    virtual void set_area(void *data, int x, int y, int width, int height,
+                          int pitch) {
+        Texel::set_area(data, x, y, width, height, pitch);
+        read_first_odd_pixel_in_line();
+    }
+
+    void store() override {
+        uint8_t *d = nullptr;
+        if (m_x % 2 == 0) {
+            last_texel = value << 4;
+        } else {
+            d = current_address();
+            d[0] = last_texel | (value & 0xf);
+        }
         m_x++;
-        if (m_x == m_start_x + m_width) {
+        if (m_x == m_start_x + m_width) { /* new line */
+            if (!d) { /* write the lonely last pixel of this line*/
+                d = current_address();
+                uint8_t b = d[0] & 0xf;
+                d[0] = b | last_texel;
+            }
             m_y++;
             m_x = m_start_x;
+            if (m_y < m_start_y + m_height) {
+                read_first_odd_pixel_in_line();
+            }
         }
     }
 
@@ -285,6 +306,7 @@ struct TexelI4: public Texel {
     void set_color(GXColor c) override { set_luminance(c.r); }
 
     uint8_t value;
+    uint8_t last_texel;
 };
 
 template <typename T> static inline uint8_t component(T value);
@@ -697,6 +719,9 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
                            void *dst, uint32_t gx_format,
                            int x, int y, int dstpitch)
 {
+    /* Skip degenerate cases */
+    if (width <= 0 || height <= 0) return;
+
     /* The GL_UNPACK_SKIP_ROWS and GL_UNPACK_SKIP_PIXELS can be handled here by
      * modifiying the source data pointer. */
     bool need_skip_pixels = false;
