@@ -44,6 +44,7 @@ add_library(${TARGET} STATIC
     src/state.h
     src/stencil.c
     src/stencil.h
+    src/texel.h
     src/texture.c
     src/utils.h
     src/vertex.cpp
