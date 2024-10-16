@@ -51,6 +51,7 @@ static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
 struct Texel {
     virtual void set_color(GXColor color) = 0;
     virtual void store() = 0;
+    virtual GXColor read() = 0;
     virtual int pitch_for_width(int width) = 0;
 
     virtual void set_area(void *data, int x, int y, int width, int height,
@@ -61,6 +62,14 @@ struct Texel {
         m_width = width;
         m_height = height;
         m_pitch = pitch;
+    }
+
+    void next() {
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     void *m_data;
@@ -87,20 +96,26 @@ struct TexelRGBA8: public Texel {
         set_color(c.r, c.g, c.b, c.a);
     }
 
-    void store() override {
+    uint8_t *current_address() {
         int block_x = m_x / 4;
         int block_y = m_y / 4;
-        uint8_t *d = static_cast<uint8_t*>(m_data) +
+        return static_cast<uint8_t*>(m_data) +
             block_y * m_pitch * 4 + block_x * 64 + (m_y % 4) * 8 + (m_x % 4) * 2;
+    }
+
+    void store() override {
+        uint8_t *d = current_address();
         d[0] = a;
         d[1] = r;
         d[32] = g;
         d[33] = b;
-        m_x++;
-        if (m_x == m_start_x + m_width) {
-            m_y++;
-            m_x = m_start_x;
-        }
+        next();
+    }
+
+    GXColor read() override {
+        uint8_t *d = current_address();
+        next();
+        return { d[1], d[32], d[33], d[0] };
     }
 
     static inline int compute_pitch(int width) {
@@ -130,11 +145,7 @@ struct Texel16: public Texel {
     void store() override {
         uint16_t *d = current_address();
         d[0] = word;
-        m_x++;
-        if (m_x == m_start_x + m_width) {
-            m_y++;
-            m_x = m_start_x;
-        }
+        next();
     }
 
     static inline int compute_pitch(int width) {
@@ -161,6 +172,14 @@ struct TexelIA8: public Texel16 {
         int luminance = luminance_from_rgb(c.r, c.g, c.b);
         set_luminance_alpha(luminance, c.a);
     }
+
+    GXColor read() override {
+        uint16_t *d = current_address();
+        next();
+        uint8_t alpha = *d >> 8;
+        uint8_t luminance = *d & 0xff;
+        return { luminance, luminance, luminance, alpha };
+    }
 };
 
 struct TexelRGB565: public Texel16 {
@@ -175,23 +194,38 @@ struct TexelRGB565: public Texel16 {
     }
 
     void set_color(GXColor c) override { set_color(c.r, c.g, c.b); }
+
+    GXColor read() override {
+        uint16_t *d = current_address();
+        next();
+        uint8_t red = (*d >> 8) & 0xf8;
+        uint8_t green = (*d >> 3) & 0xfc;
+        uint8_t blue = (*d << 3) & 0xf8;
+        /* fill the lowest bits by repeating the highest ones */
+        return {
+            uint8_t(red | (red >> 5)),
+            uint8_t(green | (green >> 6)),
+            uint8_t(blue | (blue >> 5)),
+            255
+        };
+    }
 };
 
 struct Texel8: public Texel {
     Texel8() = default;
     void setByte(uint8_t b) { value = b; }
 
-    void store() override {
+    uint8_t *current_address() {
         int block_x = m_x / 8;
         int block_y = m_y / 4;
-        uint8_t *d = static_cast<uint8_t*>(m_data) +
+        return static_cast<uint8_t*>(m_data) +
             block_y * m_pitch * 4 + block_x * 32 + (m_y % 4) * 8 + (m_x % 8);
+    }
+
+    void store() override {
+        uint8_t *d = current_address();
+        next();
         d[0] = value;
-        m_x++;
-        if (m_x == m_start_x + m_width) {
-            m_y++;
-            m_x = m_start_x;
-        }
     }
 
     static inline int compute_pitch(int width) {
@@ -214,6 +248,12 @@ struct TexelI8: public Texel8 {
         setByte(luminance_from_rgb(c.r, c.g, c.b));
     }
     void set_luminance(uint8_t l) { setByte(l); }
+
+    GXColor read() override {
+        uint8_t *d = current_address();
+        next();
+        return { d[0], d[0], d[0], 255 };
+    }
 };
 
 struct TexelA8: public Texel8 {
@@ -224,6 +264,12 @@ struct TexelA8: public Texel8 {
     using Texel8::Texel8;
     void set_color(GXColor c) override { setByte(c.a); }
     void set_alpha(uint8_t a) { setByte(a); }
+
+    GXColor read() override {
+        uint8_t *d = current_address();
+        next();
+        return { 255, 255, 255, d[0] };
+    }
 };
 
 struct TexelI4: public Texel {
@@ -273,6 +319,19 @@ struct TexelI4: public Texel {
                 read_first_odd_pixel_in_line();
             }
         }
+    }
+
+    GXColor read() override {
+        uint8_t *d = current_address();
+        uint8_t c = m_x % 2 == 0 ? (d[0] & 0xf0) : (d[0] << 4);
+        m_x++;
+        if (m_x == m_start_x + m_width) { /* new line */
+            m_y++;
+            m_x = m_start_x;
+        }
+        /* fill the lowest bits by repeating the highest ones */
+        c |= (c >> 4);
+        return { c, c, c, 255 };
     }
 
     static inline int compute_pitch(int width) {
