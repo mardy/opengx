@@ -37,6 +37,8 @@ add_library(${TARGET} STATIC
     src/image_DXT.c
     src/image_DXT.h
     src/opengx.h
+    src/pixel_stream.cpp
+    src/pixel_stream.h
     src/pixels.cpp
     src/pixels.h
     src/raster.cpp
