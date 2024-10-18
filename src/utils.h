@@ -119,9 +119,9 @@ static inline void mtx44project(const Mtx44 p, const guVector *v,
     out->y = p[1][1] * v->y + p[1][2] * v->z + p[1][3];
     out->z = p[2][2] * v->z + p[2][3];
     if (p[3][2] != 0) {
-        out->x = -out->x;
-        out->y = -out->y;
-        out->z = -out->z;
+        out->x /= -v->z;
+        out->y /= -v->z;
+        out->z /= -v->z;
     }
 }
 
