@@ -41,12 +41,14 @@ POSSIBILITY OF SUCH DAMAGE.
 
 OgxEfbContentType _ogx_efb_content_type = OGX_EFB_SCENE;
 
-void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
-                             void *texels, OgxEfbFlags flags)
+void _ogx_efb_save_area_to_buffer(uint8_t format,
+                                  uint16_t x, uint16_t y,
+                                  uint16_t width, uint16_t height,
+                                  void *texels, OgxEfbFlags flags)
 {
     GX_SetCopyFilter(GX_FALSE, NULL, GX_FALSE, NULL);
-    GX_SetTexCopySrc(glparamstate.viewport[0],
-                     glparamstate.viewport[1],
+    GX_SetTexCopySrc(x,
+                     y,
                      width,
                      height);
     GX_SetTexCopyDst(width, height, format, GX_FALSE);
@@ -57,6 +59,15 @@ void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
     u32 size = GX_GetTexBufferSize(width, height, format, 0, GX_FALSE);
     DCInvalidateRange(texels, size);
     GX_WaitDrawDone();
+}
+
+void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
+                             void *texels, OgxEfbFlags flags)
+{
+    _ogx_efb_save_area_to_buffer(format,
+                                 glparamstate.viewport[0],
+                                 glparamstate.viewport[1],
+                                 width, height, texels, flags);
 }
 
 void _ogx_efb_restore_texobj(GXTexObj *texobj)
