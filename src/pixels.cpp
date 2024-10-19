@@ -345,19 +345,19 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
 
     switch (type) {
     case GL_UNSIGNED_BYTE:
-        reader_v = GenericPixelStream<uint8_t>(data, format, type);
+        reader_v = GenericPixelStream<uint8_t>(format, type);
         reader = &std::get<GenericPixelStream<uint8_t>>(reader_v);
         break;
     case GL_UNSIGNED_SHORT:
-        reader_v = GenericPixelStream<uint16_t>(data, format, type);
+        reader_v = GenericPixelStream<uint16_t>(format, type);
         reader = &std::get<GenericPixelStream<uint16_t>>(reader_v);
         break;
     case GL_UNSIGNED_INT:
-        reader_v = GenericPixelStream<uint32_t>(data, format, type);
+        reader_v = GenericPixelStream<uint32_t>(format, type);
         reader = &std::get<GenericPixelStream<uint32_t>>(reader_v);
         break;
     case GL_FLOAT:
-        reader_v = GenericPixelStream<float>(data, format, type);
+        reader_v = GenericPixelStream<float>(format, type);
         reader = &std::get<GenericPixelStream<float>>(reader_v);
         break;
     case GL_UNSIGNED_BYTE_3_3_2:
@@ -372,11 +372,11 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
     case GL_UNSIGNED_INT_8_8_8_8_REV:
     case GL_UNSIGNED_INT_10_10_10_2:
     case GL_UNSIGNED_INT_2_10_10_10_REV:
-        reader_v = CompoundPixelStream(data, format, type);
+        reader_v = CompoundPixelStream(format, type);
         reader = &std::get<CompoundPixelStream>(reader_v);
         break;
     case GL_BITMAP:
-        reader_v = BitmapPixelStream(data);
+        reader_v = BitmapPixelStream();
         reader = &std::get<BitmapPixelStream>(reader_v);
         break;
     default:
@@ -391,6 +391,7 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         skip_pixels_after = row_length - width;
     }
 
+    reader->setup_stream(data, width, height);
     texel->set_area(dst, x, y, width, height, dstpitch);
     for (int ry = 0; ry < height; ry++) {
         if (ry > 0) {
