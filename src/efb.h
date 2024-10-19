@@ -38,6 +38,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <ogc/gx.h>
 #include <ogc/system.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     OGX_EFB_NONE = 0,
     OGX_EFB_CLEAR = 1 << 0,
@@ -55,6 +59,10 @@ extern OgxEfbContentType _ogx_efb_content_type;
 
 void _ogx_efb_save_to_buffer(uint8_t format, uint16_t width, uint16_t height,
                              void *texels, OgxEfbFlags flags);
+void _ogx_efb_save_area_to_buffer(uint8_t format,
+                                  uint16_t x, uint16_t y,
+                                  uint16_t width, uint16_t height,
+                                  void *texels, OgxEfbFlags flags);
 void _ogx_efb_restore_texobj(GXTexObj *texobj);
 
 typedef struct {
@@ -83,5 +91,9 @@ static inline void _ogx_efb_set_content_type(OgxEfbContentType content_type) {
     if (content_type == _ogx_efb_content_type) return;
     _ogx_efb_set_content_type_real(content_type);
 }
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_EFB_H */
