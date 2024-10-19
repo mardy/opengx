@@ -64,7 +64,23 @@ extern const struct MasksPerType {
  * to store a row of pixels.
  */
 struct PixelStreamBase {
+    void setup_stream(void *data, int width, int height) {
+        m_width = width;
+        m_height = height;
+        m_data = data;
+        // TODO: add handling of row width and row alignment (to all readers!)
+    }
+    void setup_stream(const void *data, int width, int height) {
+        setup_stream(const_cast<void*>(data), width, height);
+    }
+
     virtual GXColor read() = 0;
+    virtual void write(GXColor color) = 0;
+
+protected:
+    void *m_data;
+    int m_width;
+    int m_height;
 };
 
 template <typename T> static inline uint8_t component(T value);
@@ -89,8 +105,7 @@ template <> inline float glcomponent(uint8_t value) { return value / 255.0f; }
  * above, where each pixel is packed in at most 32 bits. */
 struct CompoundPixelStream: public PixelStreamBase {
     CompoundPixelStream() = default;
-    CompoundPixelStream(const void *data, GLenum format, GLenum type):
-        data(static_cast<const char *>(data)),
+    CompoundPixelStream(GLenum format, GLenum type):
         format(format),
         mask_data(*find_mask_per_type(type)) {
         if (format == GL_BGR || format == GL_BGRA) { /* swap red and blue */
@@ -134,7 +149,7 @@ struct CompoundPixelStream: public PixelStreamBase {
         for (int i = 0; i < 4; i++) {
             if (i < mask_data.bytes) {
                 pixel <<= 8;
-                pixel |= data[n_read + i];
+                pixel |= d()[n_read + i];
             }
         }
         return pixel;
@@ -155,7 +170,8 @@ struct CompoundPixelStream: public PixelStreamBase {
         return c;
     }
 
-    const char *data;
+    const char *d() const { return static_cast<const char *>(m_data); }
+    char *d() { return static_cast<char *>(m_data); }
     int n_read = 0;
     uint32_t rmask;
     uint32_t gmask;
@@ -168,15 +184,9 @@ struct CompoundPixelStream: public PixelStreamBase {
 /* This class handles reading of pixels from bitmap (1-bit depth) */
 struct BitmapPixelStream: public PixelStreamBase {
     BitmapPixelStream() = default;
-    /* The OpenGL spec fixes the format of bitmaps to GL_COLOR_INDEX, so no
-     * need to have it as a parameter here */
-    BitmapPixelStream(const void *data):
-        data(static_cast<const uint8_t *>(data)) {
-            // TODO: add handling of row width and row alignment (to all readers!)
-    }
 
     inline uint8_t read_pixel() const {
-        uint8_t byte = data[n_read / 8];
+        uint8_t byte = d()[n_read / 8];
         int shift = glparamstate.unpack_lsb_first ?
             (n_read % 8) : (7 - n_read % 8);
         bool bit = (byte >> shift) & 0x1;
@@ -189,7 +199,8 @@ struct BitmapPixelStream: public PixelStreamBase {
         return { pixel, pixel, pixel, 255 };
     }
 
-    const uint8_t *data;
+    const uint8_t *d() const { return static_cast<const uint8_t *>(m_data); }
+    uint8_t *d() { return static_cast<uint8_t *>(m_data); }
     int n_read = 0;
 };
 
@@ -198,8 +209,8 @@ struct BitmapPixelStream: public PixelStreamBase {
  */
 template <typename T>
 struct GenericPixelStream: public PixelStreamBase {
-    GenericPixelStream(const void *data, GLenum format, GLenum type):
-        data(static_cast<const T *>(data)), format(format),
+    GenericPixelStream(GLenum format, GLenum type):
+        format(format),
         component_data(*find_component_data(format)) {}
 
     static const ComponentsPerFormat *find_component_data(GLenum format) {
@@ -223,7 +234,7 @@ struct GenericPixelStream: public PixelStreamBase {
 
         const ComponentsPerFormat &cd = component_data;
         for (int i = 0; i < cd.components_per_pixel; i++) {
-            pixel.components[cd.component_index[i]] = component(data[n_read++]);
+            pixel.components[cd.component_index[i]] = component(d()[n_read++]);
         }
 
         /* Some formats require a special handling */
@@ -237,7 +248,8 @@ struct GenericPixelStream: public PixelStreamBase {
         return pixel.c;
     }
 
-    const T *data;
+    T *d() { return static_cast<T *>(m_data); }
+    const T *d() const { return static_cast<const T *>(m_data); }
     GLenum format;
     int n_read = 0;
     ComponentsPerFormat component_data;
