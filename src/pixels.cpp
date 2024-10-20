@@ -194,7 +194,7 @@ void load_texture(const void *data, GLenum type, int width, int height,
                                                     dst, x, y, dstpitch);
         break;
     default:
-        warning("Unsupported texture format %d", type);
+        warning("Unsupported texture format %04x", type);
     }
 }
 
