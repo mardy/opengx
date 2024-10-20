@@ -31,12 +31,16 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "clip.h"
 #include "debug.h"
+#include "efb.h"
+#include "pixel_stream.h"
 #include "pixels.h"
 #include "state.h"
+#include "texel.h"
 #include "utils.h"
 
 #include <GL/gl.h>
 #include <malloc.h>
+#include <memory>
 #include <type_traits>
 
 void glPixelZoom(GLfloat xfactor, GLfloat yfactor)
@@ -313,6 +317,152 @@ void glBitmap(GLsizei width, GLsizei height,
     glparamstate.raster_pos[1] += ymove;
 
     GX_WaitDrawDone();
+    free(texels);
+}
+
+static const struct ReadPixelFormat {
+    GLenum format;
+    uint8_t gx_copy_format;
+    uint8_t gx_dest_format;
+    int n_components;
+} s_read_pixel_formats[] = {
+    { GL_RED, GX_CTF_R8, GX_TF_I8, 1 },
+    { GL_GREEN, GX_CTF_G8, GX_TF_I8, 1 },
+    { GL_BLUE, GX_CTF_B8, GX_TF_I8, 1 },
+    { GL_ALPHA, GX_CTF_A8, GX_TF_I8, 1 },
+    { GL_LUMINANCE, GX_TF_I8, GX_TF_I8, 1 },
+    { GL_LUMINANCE_ALPHA, GX_TF_IA8, GX_TF_IA8, 2 },
+    { GL_RGB, GX_TF_RGBA8, GX_TF_RGBA8, 3 },
+    { GL_RGBA, GX_TF_RGBA8, GX_TF_RGBA8, 4 },
+    { 0, },
+};
+
+union PixelData {
+    GXColor color;
+    uint8_t component[4];
+    float depth;
+};
+
+struct TextureReader {
+    TextureReader(const ReadPixelFormat *read_format,
+                  void *texels, int width, int height):
+        m_texel(new_texel_for_format(read_format->gx_dest_format))
+    {
+        int pitch = m_texel->pitch_for_width(width);
+        m_texel->set_area(texels, 0, 0, width, height, pitch);
+    }
+
+    Texel *new_texel_for_format(uint8_t gx_format) {
+        switch (gx_format) {
+        case GX_TF_I8: return new TexelI8;
+        case GX_TF_IA8: return new TexelIA8;
+        case GX_TF_RGBA8: return new TexelRGBA8;
+        default: return nullptr;
+        }
+    }
+
+    void read(PixelData *pixel) {
+        GXColor c = m_texel->read();
+        pixel->color = c;
+    }
+
+    std::unique_ptr<Texel> m_texel;
+};
+
+struct PixelWriter {
+    PixelWriter(void *data, int width, int height, GLenum format, GLenum type):
+        m_pixel(new_pixel_for_format(format, type)),
+        m_width(width), m_height(height),
+        m_format(format), m_type(type) {
+        m_pixel->setup_stream(data, width, height);
+    }
+
+    PixelStreamBase *new_pixel_for_format(GLenum format, GLenum type) {
+        switch (type) {
+        case GL_UNSIGNED_BYTE:
+            return new GenericPixelStream<uint8_t>(format, type);
+        case GL_UNSIGNED_SHORT:
+            return new GenericPixelStream<uint16_t>(format, type);
+        case GL_UNSIGNED_INT:
+            return new GenericPixelStream<uint32_t>(format, type);
+        case GL_FLOAT:
+            return new GenericPixelStream<float>(format, type);
+        case GL_UNSIGNED_BYTE_3_3_2:
+        case GL_UNSIGNED_BYTE_2_3_3_REV:
+        case GL_UNSIGNED_SHORT_5_6_5:
+        case GL_UNSIGNED_SHORT_5_6_5_REV:
+        case GL_UNSIGNED_SHORT_4_4_4_4:
+        case GL_UNSIGNED_SHORT_4_4_4_4_REV:
+        case GL_UNSIGNED_SHORT_5_5_5_1:
+        case GL_UNSIGNED_SHORT_1_5_5_5_REV:
+        case GL_UNSIGNED_INT_8_8_8_8:
+        case GL_UNSIGNED_INT_8_8_8_8_REV:
+        case GL_UNSIGNED_INT_10_10_10_2:
+        case GL_UNSIGNED_INT_2_10_10_10_REV:
+            return new CompoundPixelStream(format, type);
+        default:
+            warning("Unknown texture data type %x\n", type);
+            return nullptr;
+        }
+    }
+
+    void write(const PixelData *pixel) {
+        m_pixel->write(pixel->color);
+    }
+
+    std::unique_ptr<PixelStreamBase> m_pixel;
+    int m_width;
+    int m_height;
+    GLenum m_format;
+    GLenum m_type;
+};
+
+void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
+                  GLenum format, GLenum type, GLvoid *data)
+{
+    uint8_t gxformat = 0xff;
+    const ReadPixelFormat *read_format = NULL;
+    int n_components;
+
+    switch (format) {
+    case GL_COLOR_INDEX:
+        warning("glReadPixels: GL_COLOR_INDEX not supported");
+        return;
+    case GL_STENCIL_INDEX:
+        warning("glReadPixels: GL_STENCIL_INDEX not implemented");
+        // TODO
+        return;
+    case GL_DEPTH_COMPONENT:
+        warning("glReadPixels: GL_DEPTH_COMPONENT not implemented");
+        // TODO
+        return;
+    }
+
+    for (int i = 0; s_read_pixel_formats[i].format != 0; i++) {
+        if (s_read_pixel_formats[i].format == format) {
+            read_format = &s_read_pixel_formats[i];
+            break;
+        }
+    }
+    if (!read_format) {
+        warning("glReadPixels: unsupported format %04x", format);
+        return;
+    }
+
+    u32 size = GX_GetTexBufferSize(width, height,
+                                   read_format->gx_dest_format, 0, GX_FALSE);
+    void *texels = memalign(32, size);
+    _ogx_efb_save_area_to_buffer(read_format->gx_copy_format, x, y,
+                                 width, height, texels, OGX_EFB_NONE);
+    TextureReader reader(read_format, texels, width, height);
+    PixelWriter writer(data, width, height, format, type);
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+            PixelData pixel;
+            reader.read(&pixel);
+            writer.write(&pixel);
+        }
+    }
     free(texels);
 }
 
