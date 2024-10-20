@@ -275,13 +275,15 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
      * instantiation of the template takes some space, and the number of
      * possible combinations is polynomial.
      */
-    for (int i = 0; i < MAX_FAST_CONVERSIONS; i++) {
-        const FastConversion &c = s_registered_conversions[i];
-        if (c.gl_format == 0) break;
+    if (type == GL_BYTE || type == GL_UNSIGNED_BYTE || type == GL_FLOAT) {
+        for (int i = 0; i < MAX_FAST_CONVERSIONS; i++) {
+            const FastConversion &c = s_registered_conversions[i];
+            if (c.gl_format == 0) break;
 
-        if (c.gl_format == format && c.gx_format == gx_format) {
-            c.conv.func(data, type, width, height, dst, x, y, dstpitch);
-            return;
+            if (c.gl_format == format && c.gx_format == gx_format) {
+                c.conv.func(data, type, width, height, dst, x, y, dstpitch);
+                return;
+            }
         }
     }
 
