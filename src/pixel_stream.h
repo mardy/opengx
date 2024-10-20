@@ -68,6 +68,7 @@ struct PixelStreamBase {
         m_width = width;
         m_height = height;
         m_data = data;
+        setup();
         // TODO: add handling of row width and row alignment (to all readers!)
     }
     void setup_stream(const void *data, int width, int height) {
@@ -76,6 +77,7 @@ struct PixelStreamBase {
 
     virtual GXColor read() = 0;
     virtual void write(GXColor color) = 0;
+    virtual void setup() {}
 
 protected:
     void *m_data;
@@ -170,9 +172,50 @@ struct CompoundPixelStream: public PixelStreamBase {
         return c;
     }
 
-    const char *d() const { return static_cast<const char *>(m_data); }
-    char *d() { return static_cast<char *>(m_data); }
+    inline void write_component(uint32_t *pixel, uint8_t value, uint32_t mask,
+                                int nbits, int offset) {
+        /* This function assumes that the bits which we'll write into "pixel"
+         * are initialized to 0 */
+        int shift = mask_data.bytes * 8 - offset - 8;
+        uint32_t c = shift > 0 ? (value << shift) : (value >> -shift);
+        *pixel |= c & mask;
+    }
+
+    inline void write_pixel(uint32_t pixel) {
+        for (int i = mask_data.bytes - 1; i >= 0; i--) {
+            d()[m_write_pos + i] = uint8_t(pixel);
+            pixel >>= 8;
+        }
+        m_write_pos += mask_data.bytes;
+        if (m_write_pos % m_bytes_per_row == 0) {
+            /* A new row has started; since OpenGL starts from the bottom left
+             * corner, we need to move to the line above, backwords */
+            m_write_pos -= 2 * m_bytes_per_row;
+        }
+    }
+
+    void write(GXColor color) override {
+        uint32_t pixel = 0;
+        write_component(&pixel, color.r, rmask, mask_data.rbits, mask_data.roff);
+        write_component(&pixel, color.g, gmask, mask_data.gbits, mask_data.goff);
+        write_component(&pixel, color.b, bmask, mask_data.bbits, mask_data.boff);
+        if (mask_data.abits > 0) {
+            write_component(&pixel, color.a, amask, mask_data.abits, mask_data.aoff);
+        }
+        write_pixel(pixel);
+    }
+
+    void setup() override {
+        m_bytes_per_row = m_width * mask_data.bytes;
+        /* We start writing from the bottom row */
+        m_write_pos = (m_height - 1) * m_bytes_per_row;
+    }
+
+    const uint8_t *d() const { return static_cast<const uint8_t *>(m_data); }
+    uint8_t *d() { return static_cast<uint8_t *>(m_data); }
     int n_read = 0;
+    int m_write_pos;
+    int m_bytes_per_row;
     uint32_t rmask;
     uint32_t gmask;
     uint32_t bmask;
@@ -199,8 +242,13 @@ struct BitmapPixelStream: public PixelStreamBase {
         return { pixel, pixel, pixel, 255 };
     }
 
+    void write(GXColor color) override {
+        /* TODO: writing a bitmap might only be useful to dump the stencil
+         * buffer, which is not a common case. Let's implement this when we
+         * meet the need. */
+    }
+
     const uint8_t *d() const { return static_cast<const uint8_t *>(m_data); }
-    uint8_t *d() { return static_cast<uint8_t *>(m_data); }
     int n_read = 0;
 };
 
@@ -226,6 +274,14 @@ struct GenericPixelStream: public PixelStreamBase {
         return width * component_data.components_per_pixel * sizeof(T);
     }
 
+    void check_next_row() {
+        if (m_write_pos % m_components_per_row == 0) {
+            /* A new row has started; since OpenGL starts from the bottom left
+             * corner, we need to move to the line above, backwords */
+            m_write_pos -= 2 * m_components_per_row;
+        }
+    }
+
     GXColor read() override {
         union {
             uint8_t components[4];
@@ -248,10 +304,33 @@ struct GenericPixelStream: public PixelStreamBase {
         return pixel.c;
     }
 
+    void write(GXColor color) override {
+        union {
+            uint8_t components[4];
+            GXColor c;
+        } pixel;
+
+        pixel.c = color;
+        const ComponentsPerFormat &cd = component_data;
+        for (int i = 0; i < cd.components_per_pixel; i++) {
+            d()[m_write_pos++] = glcomponent<T>(pixel.components[cd.component_index[i]]);
+        }
+        check_next_row();
+    }
+
+    void setup() override {
+        const ComponentsPerFormat &cd = component_data;
+        m_components_per_row = m_width * cd.components_per_pixel;
+        /* We start writing from the bottom row */
+        m_write_pos = (m_height - 1) * m_components_per_row;
+    }
+
     T *d() { return static_cast<T *>(m_data); }
     const T *d() const { return static_cast<const T *>(m_data); }
     GLenum format;
     int n_read = 0;
+    int m_write_pos;
+    int m_components_per_row;
     ComponentsPerFormat component_data;
 };
 
