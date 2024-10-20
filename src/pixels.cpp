@@ -71,8 +71,27 @@ static inline uint8_t luminance_from_rgb(uint8_t r, uint8_t g, uint8_t b)
 
 struct Texel {
     virtual void set_color(GXColor color) = 0;
-    virtual void store (void *texture, int x, int y, int pitch) = 0;
+    virtual void store() = 0;
     virtual int pitch_for_width(int width) = 0;
+
+    virtual void set_area(void *data, int x, int y, int width, int height,
+                          int pitch) {
+        m_data = data;
+        m_start_x = m_x = x;
+        m_start_y = m_y = y;
+        m_width = width;
+        m_height = height;
+        m_pitch = pitch;
+    }
+
+    void *m_data;
+    int m_x;
+    int m_y;
+    int m_start_x;
+    int m_start_y;
+    int m_width;
+    int m_height;
+    int m_pitch;
 };
 
 struct TexelRGBA8: public Texel {
@@ -89,15 +108,20 @@ struct TexelRGBA8: public Texel {
         set_color(c.r, c.g, c.b, c.a);
     }
 
-    void store(void *texture, int x, int y, int pitch) override {
-        int block_x = x / 4;
-        int block_y = y / 4;
-        uint8_t *d = static_cast<uint8_t*>(texture) +
-            block_y * pitch * 4 + block_x * 64 + (y % 4) * 8 + (x % 4) * 2;
+    void store() override {
+        int block_x = m_x / 4;
+        int block_y = m_y / 4;
+        uint8_t *d = static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 4 + block_x * 64 + (m_y % 4) * 8 + (m_x % 4) * 2;
         d[0] = a;
         d[1] = r;
         d[32] = g;
         d[33] = b;
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     static inline int compute_pitch(int width) {
@@ -117,13 +141,18 @@ struct Texel16: public Texel {
     Texel16() = default;
     void setWord(uint16_t value) { word = value; }
 
-    void store(void *texture, int x, int y, int pitch) override {
-        int block_x = x / 4;
-        int block_y = y / 4;
-        uint8_t *d = static_cast<uint8_t*>(texture) +
-            block_y * pitch * 4 + block_x * 32 + (y % 4) * 8 + (x % 4) * 2;
+    void store() override {
+        int block_x = m_x / 4;
+        int block_y = m_y / 4;
+        uint8_t *d = static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 4 + block_x * 32 + (m_y % 4) * 8 + (m_x % 4) * 2;
         d[0] = byte0();
         d[1] = byte1();
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     static inline int compute_pitch(int width) {
@@ -173,12 +202,17 @@ struct Texel8: public Texel {
     Texel8() = default;
     void setByte(uint8_t b) { value = b; }
 
-    void store(void *texture, int x, int y, int pitch) override {
-        int block_x = x / 8;
-        int block_y = y / 4;
-        uint8_t *d = static_cast<uint8_t*>(texture) +
-            block_y * pitch * 4 + block_x * 32 + (y % 4) * 8 + (x % 8);
+    void store() override {
+        int block_x = m_x / 8;
+        int block_y = m_y / 4;
+        uint8_t *d = static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 4 + block_x * 32 + (m_y % 4) * 8 + (m_x % 8);
         d[0] = value;
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     static inline int compute_pitch(int width) {
@@ -217,16 +251,16 @@ struct TexelI4: public Texel {
     TexelI4() = default;
     void set_luminance(uint8_t luminance) { value = luminance >> 4; }
 
-    void store(void *texture, int x, int y, int pitch) override {
-        int block_x = x / 8;
-        int block_y = y / 8;
-        uint8_t *d = static_cast<uint8_t*>(texture) +
-            block_y * pitch * 8 + block_x * 32 + (y % 8) * 4 + (x % 8) / 2;
+    void store() override {
+        int block_x = m_x / 8;
+        int block_y = m_y / 8;
+        uint8_t *d = static_cast<uint8_t*>(m_data) +
+            block_y * m_pitch * 8 + block_x * 32 + (m_y % 8) * 4 + (m_x % 8) / 2;
         uint8_t texel_pair = d[0];
         /* This is extremely inefficient! TODO: rework the Texel classes so
          * that they operate as a stream writer, similarly to the reader
          * classes. */
-        if (x % 2 == 1) {
+        if (m_x % 2 == 1) {
             texel_pair &= 0xf0;
             texel_pair |= (value & 0xf);
         } else {
@@ -234,6 +268,11 @@ struct TexelI4: public Texel {
             texel_pair |= (value << 4);
         }
         d[0] = texel_pair;
+        m_x++;
+        if (m_x == m_start_x + m_width) {
+            m_y++;
+            m_x = m_start_x;
+        }
     }
 
     static inline int compute_pitch(int width) {
@@ -576,12 +615,13 @@ void load_texture_typed(const void *src, int width, int height,
         glparamstate.unpack_row_length : width;
     int srcpitch = READER::pitch_for_width(row_length);
 
+    TEXEL texel;
+    texel.set_area(dest, x, y, width, height, dstpitch);
     for (int ry = 0; ry < height; ry++) {
         const DataType *srcline = READER::row_ptr(src, ry, srcpitch);
         for (int rx = 0; rx < width; rx++) {
-            TEXEL texel;
             srcline = READER::read(srcline, texel);
-            texel.store(dest, rx + x, ry + y, dstpitch);
+            texel.store();
         }
     }
 }
@@ -797,6 +837,7 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         skip_pixels_after = row_length - width;
     }
 
+    texel->set_area(dst, x, y, width, height, dstpitch);
     for (int ry = 0; ry < height; ry++) {
         if (ry > 0) {
             for (int i = 0; i < skip_pixels_after; i++) {
@@ -806,7 +847,7 @@ void _ogx_bytes_to_texture(const void *data, GLenum format, GLenum type,
         for (int rx = 0; rx < width; rx++) {
             GXColor c = reader->read();
             texel->set_color(c);
-            texel->store(dst, x + rx, y + ry, dstpitch);
+            texel->store();
         }
     }
 }
