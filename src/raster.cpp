@@ -500,6 +500,14 @@ void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type,
 
     GX_SetNumChans(0);
     GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+    bool no_alpha = false;
+    if (format == GL_LUMINANCE) {
+        /* Set alpha to 1.0 */
+        GXColor ccol = { 0, 0, 0, 255 };
+        GX_SetTevColor(GX_TEVREG0, ccol);
+        GX_SetTevAlphaIn(GX_TEVSTAGE0,
+                         GX_CA_A0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO);
+    }
     draw_raster_texture(&texture, width, height, pos_x, pos_y, pos_z);
 
     /* We need to wait for the drawing to be complete before freeing the
