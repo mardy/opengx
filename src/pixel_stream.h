@@ -103,6 +103,18 @@ template <> inline uint32_t glcomponent(uint8_t value) {
 }
 template <> inline float glcomponent(uint8_t value) { return value / 255.0f; }
 
+template <typename T> static inline T depth_component(GXColor c);
+template <> inline uint8_t depth_component(GXColor c) { return c.r; }
+template <> inline uint16_t depth_component(GXColor c) {
+    return (c.r << 8) | c.g;
+}
+template <> inline uint32_t depth_component(GXColor c) {
+    return (c.r << 16) | (c.g << 8) | c.b;
+}
+template <> inline float depth_component(GXColor c) {
+    return depth_component<uint32_t>(c) / float(0xffffff);
+}
+
 /* This class handles reading of pixels stored in one of the formats listed
  * above, where each pixel is packed in at most 32 bits. */
 struct CompoundPixelStream: public PixelStreamBase {
@@ -332,6 +344,18 @@ struct GenericPixelStream: public PixelStreamBase {
     int m_write_pos;
     int m_components_per_row;
     ComponentsPerFormat component_data;
+};
+
+template <typename T>
+struct DepthPixelStream: public GenericPixelStream<T> {
+    using GenericPixelStream<T>::GenericPixelStream;
+    using GenericPixelStream<T>::m_write_pos;
+
+    void write(GXColor color) override {
+        this->d()[m_write_pos++] = depth_component<T>(color)
+             * glparamstate.transfer_depth_scale + glparamstate.transfer_depth_bias;
+        this->check_next_row();
+    }
 };
 
 #endif /* OPENGX_PIXEL_STREAM_H */

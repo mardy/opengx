@@ -129,9 +129,15 @@ void glGetFloatv(GLenum pname, GLfloat *params)
     case GL_CURRENT_RASTER_POSITION:
         floatcpy(params, glparamstate.raster_pos, 4);
         break;
+    case GL_DEPTH_BIAS:
+        *params = glparamstate.transfer_depth_bias;
+        break;
     case GL_DEPTH_RANGE:
         params[0] = glparamstate.depth_near;
         params[1] = glparamstate.depth_far;
+        break;
+    case GL_DEPTH_SCALE:
+        *params = glparamstate.transfer_depth_scale;
         break;
     case GL_MODELVIEW_MATRIX:
         for (int i = 0; i < 3; i++)
@@ -172,6 +178,12 @@ void glGetIntegerv(GLenum pname, GLint *params)
     case GL_DRAW_BUFFER:
     case GL_READ_BUFFER:
         *params = glparamstate.active_buffer;
+        break;
+    case GL_INDEX_OFFSET:
+        *params = glparamstate.transfer_index_offset;
+        break;
+    case GL_INDEX_SHIFT:
+        *params = glparamstate.transfer_index_shift;
         break;
     case GL_MAX_CLIP_PLANES:
         *params = MAX_CLIP_PLANES;
