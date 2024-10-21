@@ -441,6 +441,9 @@ uint8_t _ogx_gl_format_to_gx(GLenum format)
     case GL_RGBA:
     case GL_BGRA:
     case GL_COMPRESSED_RGBA_ARB: /* No support for compressed alpha textures */
+    case GL_RED:
+    case GL_GREEN:
+    case GL_BLUE:
         return GX_TF_RGBA8;
     case GL_LUMINANCE_ALPHA: return GX_TF_IA8;
     case GL_LUMINANCE: return GX_TF_I8;
