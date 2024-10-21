@@ -520,3 +520,40 @@ void ogx_register_tex_conversion(GLenum format, GLenum internal_format,
     c.gx_format = gx_format;
     c.conv.id = converter;
 }
+
+void glPixelTransferf(GLenum pname, GLfloat param)
+{
+    switch (pname) {
+    case GL_DEPTH_BIAS:
+        glparamstate.transfer_depth_bias = param;
+        break;
+    case GL_DEPTH_SCALE:
+        glparamstate.transfer_depth_scale = param;
+        break;
+    case GL_RED_BIAS:
+    case GL_RED_SCALE:
+    case GL_GREEN_BIAS:
+    case GL_GREEN_SCALE:
+    case GL_BLUE_BIAS:
+    case GL_BLUE_SCALE:
+    case GL_ALPHA_BIAS:
+    case GL_ALPHA_SCALE:
+        warning("Scaling color components is not implemented");
+        break;
+    }
+}
+
+void glPixelTransferi(GLenum pname, GLint param)
+{
+    switch (pname) {
+    case GL_INDEX_OFFSET:
+        glparamstate.transfer_index_offset = param;
+        break;
+    case GL_INDEX_SHIFT:
+        glparamstate.transfer_index_shift = param;
+        break;
+    default:
+        glPixelTransferf(pname, param);
+        break;
+    }
+}

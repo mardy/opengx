@@ -334,6 +334,7 @@ static const struct ReadPixelFormat {
     { GL_LUMINANCE_ALPHA, GX_TF_IA8, GX_TF_IA8, 2 },
     { GL_RGB, GX_TF_RGBA8, GX_TF_RGBA8, 3 },
     { GL_RGBA, GX_TF_RGBA8, GX_TF_RGBA8, 4 },
+    { GL_DEPTH_COMPONENT, GX_TF_Z24X8, GX_TF_RGBA8, 1 },
     { 0, },
 };
 
@@ -378,6 +379,18 @@ struct PixelWriter {
     }
 
     PixelStreamBase *new_pixel_for_format(GLenum format, GLenum type) {
+        if (format == GL_DEPTH_COMPONENT) {
+            switch (type) {
+            case GL_UNSIGNED_BYTE:
+                return new DepthPixelStream<uint8_t>(format, type);
+            case GL_UNSIGNED_SHORT:
+                return new DepthPixelStream<uint16_t>(format, type);
+            case GL_UNSIGNED_INT:
+                return new DepthPixelStream<uint32_t>(format, type);
+            case GL_FLOAT:
+                return new DepthPixelStream<float>(format, type);
+            }
+        }
         switch (type) {
         case GL_UNSIGNED_BYTE:
             return new GenericPixelStream<uint8_t>(format, type);
@@ -430,10 +443,6 @@ void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
         return;
     case GL_STENCIL_INDEX:
         warning("glReadPixels: GL_STENCIL_INDEX not implemented");
-        // TODO
-        return;
-    case GL_DEPTH_COMPONENT:
-        warning("glReadPixels: GL_DEPTH_COMPONENT not implemented");
         // TODO
         return;
     }

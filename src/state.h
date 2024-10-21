@@ -133,6 +133,10 @@ typedef struct glparams_
     float clearz;
     float polygon_offset_factor;
     float polygon_offset_units;
+    float transfer_depth_scale;
+    float transfer_depth_bias;
+    int16_t transfer_index_shift;
+    int16_t transfer_index_offset;
 
     OgxPixelMapTables *pixel_maps; /* Only allocated if glPixelMap is called */
 
