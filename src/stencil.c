@@ -630,6 +630,11 @@ void _ogx_stencil_clear()
     s_stencil_texture_needs_update = false;
 }
 
+OgxEfbBuffer *_ogx_stencil_get_buffer()
+{
+    return s_stencil_buffer;
+}
+
 void ogx_stencil_create(OgxStencilFlags flags)
 {
     s_wants_stencil = true;

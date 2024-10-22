@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "pixel_stream.h"
 #include "pixels.h"
 #include "state.h"
+#include "stencil.h"
 #include "texel.h"
 #include "utils.h"
 
@@ -355,6 +356,7 @@ struct TextureReader {
 
     Texel *new_texel_for_format(uint8_t gx_format) {
         switch (gx_format) {
+        case GX_CTF_R4: return new TexelI4;
         case GX_TF_I8: return new TexelI8;
         case GX_TF_IA8: return new TexelIA8;
         case GX_TF_RGBA8: return new TexelRGBA8;
@@ -389,6 +391,17 @@ struct PixelWriter {
                 return new DepthPixelStream<uint32_t>(format, type);
             case GL_FLOAT:
                 return new DepthPixelStream<float>(format, type);
+            }
+        } else if (format == GL_STENCIL_INDEX) {
+            switch (type) {
+            case GL_UNSIGNED_BYTE:
+                return new StencilPixelStream<uint8_t>(format, type);
+            case GL_UNSIGNED_SHORT:
+                return new StencilPixelStream<uint16_t>(format, type);
+            case GL_UNSIGNED_INT:
+                return new StencilPixelStream<uint32_t>(format, type);
+            case GL_FLOAT:
+                return new StencilPixelStream<float>(format, type);
             }
         }
         switch (type) {
@@ -435,17 +448,10 @@ void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
 {
     uint8_t gxformat = 0xff;
     const ReadPixelFormat *read_format = NULL;
+    ReadPixelFormat stencil_format;
     int n_components;
-
-    switch (format) {
-    case GL_COLOR_INDEX:
-        warning("glReadPixels: GL_COLOR_INDEX not supported");
-        return;
-    case GL_STENCIL_INDEX:
-        warning("glReadPixels: GL_STENCIL_INDEX not implemented");
-        // TODO
-        return;
-    }
+    void *texels = nullptr;
+    bool must_free_texels = false;
 
     for (int i = 0; s_read_pixel_formats[i].format != 0; i++) {
         if (s_read_pixel_formats[i].format == format) {
@@ -454,15 +460,27 @@ void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
         }
     }
     if (!read_format) {
-        warning("glReadPixels: unsupported format %04x", format);
-        return;
+        if (format == GL_STENCIL_INDEX) {
+            OgxEfbBuffer *stencil = _ogx_stencil_get_buffer();
+            stencil_format = {
+                format, 0,
+                uint8_t(GX_GetTexObjFmt(&stencil->texobj)), 1 };
+            read_format = &stencil_format;
+            texels = _ogx_efb_buffer_get_texels(stencil);
+        } else {
+            warning("glReadPixels: unsupported format %04x", format);
+            return;
+        }
     }
 
-    u32 size = GX_GetTexBufferSize(width, height,
-                                   read_format->gx_dest_format, 0, GX_FALSE);
-    void *texels = memalign(32, size);
-    _ogx_efb_save_area_to_buffer(read_format->gx_copy_format, x, y,
-                                 width, height, texels, OGX_EFB_NONE);
+    if (!texels) {
+        u32 size = GX_GetTexBufferSize(width, height,
+                                       read_format->gx_dest_format, 0, GX_FALSE);
+        texels = memalign(32, size);
+        _ogx_efb_save_area_to_buffer(read_format->gx_copy_format, x, y,
+                                     width, height, texels, OGX_EFB_NONE);
+        must_free_texels = true;
+    }
     TextureReader reader(read_format, texels, width, height);
     PixelWriter writer(data, width, height, format, type);
     for (int row = 0; row < height; row++) {
@@ -472,7 +490,10 @@ void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
             writer.write(&pixel);
         }
     }
-    free(texels);
+
+    if (must_free_texels) {
+        free(texels);
+    }
 }
 
 void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type,

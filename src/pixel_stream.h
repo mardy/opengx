@@ -358,4 +358,17 @@ struct DepthPixelStream: public GenericPixelStream<T> {
     }
 };
 
+template <typename T>
+struct StencilPixelStream: public GenericPixelStream<T> {
+    using GenericPixelStream<T>::GenericPixelStream;
+    using GenericPixelStream<T>::m_write_pos;
+
+    void write(GXColor color) override {
+        this->d()[m_write_pos++] = glcomponent<T>(color.r)
+            * (1 << glparamstate.transfer_index_shift)
+            + glparamstate.transfer_index_offset;
+        this->check_next_row();
+    }
+};
+
 #endif /* OPENGX_PIXEL_STREAM_H */

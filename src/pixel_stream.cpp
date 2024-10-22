@@ -60,5 +60,6 @@ const struct ComponentsPerFormat _ogx_pixels_components_per_format[] = {
     { GL_BLUE, 1, { 2 }},
     { GL_ALPHA, 1, { 3 }},
     { GL_DEPTH_COMPONENT, 1, {}},
+    { GL_STENCIL_INDEX, 1, { 0 }},
     { 0, }
 };

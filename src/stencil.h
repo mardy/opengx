@@ -33,10 +33,15 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef OPENGX_STENCIL_H
 #define OPENGX_STENCIL_H
 
+#include "efb.h"
 #include "opengx.h"
 
 #include <malloc.h>
 #include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern OgxStencilFlags _ogx_stencil_flags;
 
@@ -55,5 +60,11 @@ void _ogx_stencil_draw(OgxStencilDrawCallback callback, void *cb_data);
 
 void _ogx_stencil_load_into_efb();
 void _ogx_stencil_save_to_efb();
+
+OgxEfbBuffer *_ogx_stencil_get_buffer(void);
+
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif /* OPENGX_STENCIL_H */
