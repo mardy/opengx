@@ -794,6 +794,8 @@ OgxArrayReader *_ogx_array_add(uint8_t attribute, const OgxVertexAttribArray *ar
         /* No conversions needed, just dump the data from the array directly
          * into the GX pipe. */
         if (array->vbo) {
+            debug(OGX_LOG_VBO, "Using VBO %d for attr %d type %d, n=%d",
+                  array->vbo, info.format.attribute, info.format.size, array->size);
             new (reader) DirectVboReader(array->vbo, info.format, data, stride);
             return reader;
         }

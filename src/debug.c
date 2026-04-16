@@ -46,6 +46,7 @@ static const struct {
     { "texture", OGX_LOG_TEXTURE },
     { "stencil", OGX_LOG_STENCIL },
     { "shader", OGX_LOG_SHADER },
+    { "vbo", OGX_LOG_VBO },
     { NULL, 0 },
 };
 

@@ -44,6 +44,7 @@ typedef enum {
     OGX_LOG_STENCIL = 1 << 4,
     OGX_LOG_CLIPPING = 1 << 5,
     OGX_LOG_SHADER = 1 << 6,
+    OGX_LOG_VBO = 1 << 7,
 } OgxLogMask;
 
 extern OgxLogMask _ogx_log_mask;
