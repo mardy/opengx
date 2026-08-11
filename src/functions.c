@@ -51,7 +51,9 @@ static const OgxProcMap s_proc_map[] = {
     PROC(glBindBuffer), /* OpenGL 1.5 */
     PROC(glBindTexture),
     PROC(glBitmap),
+    PROC(glBlendEquation),
     PROC(glBlendFunc),
+    PROC(glBlendFuncSeparate),
     PROC(glBufferData), /* OpenGL 1.5 */
     PROC(glBufferSubData), /* OpenGL 1.5 */
     PROC(glCallList),

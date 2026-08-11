@@ -2826,6 +2826,8 @@ void glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdou
 // NOT GOING TO IMPLEMENT
 
 void glBlendEquation(GLenum mode) {}
+void glBlendFuncSeparate(GLenum sfactorRGB, GLenum dfactorRGB,
+                         GLenum sfactorAlpha, GLenum dfactorAlpha) {}
 void glShadeModel(GLenum mode) {}  // In theory we don't have GX equivalent?
 void glHint(GLenum target, GLenum mode) {}
 
